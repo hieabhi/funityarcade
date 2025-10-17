@@ -1,0 +1,1792 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FunityArcade — Offline Fun</title>
+  <meta name="description" content="A purely HTML, CSS, and JS mini-arcade to pass time offline: memory match, reaction timer, doodle canvas, breathing pacer, trivia, and whack-a-mole." />
+  <style>
+    :root {
+      /* Futuristic neon palette */
+      --bg: #050b1a;
+      --bg-2: #0b1030;
+      --panel: rgba(12, 22, 44, 0.6);
+      --panel-2: rgba(15, 28, 60, 0.45);
+      --panel-border: rgba(120, 200, 255, 0.2);
+      --fg: #e7f1ff;
+      --muted: #97b0d6;
+      --accent: #00ffd5;
+      --accent-2: #7c4dff;
+      --warn: #ffb300;
+      --danger: #ff4d6d;
+      --shadow: rgba(0,0,0,0.45);
+      --glow: 0 0 8px rgba(0,255,213,0.4), 0 0 18px rgba(0,255,213,0.25);
+      --glow-2: 0 0 8px rgba(124,77,255,0.35), 0 0 18px rgba(124,77,255,0.22);
+    }
+    .light {
+      --bg: #eaf2ff;
+      --bg-2: #ffffff;
+      --panel: rgba(255,255,255,0.75);
+      --panel-2: rgba(245,250,255,0.7);
+      --panel-border: rgba(0, 90, 255, 0.18);
+      --fg: #0b1030;
+      --muted: #4c5a7a;
+      --accent: #0066ff;
+      --accent-2: #8a2be2;
+      --warn: #b76e00;
+      --danger: #b81a3d;
+      --shadow: rgba(0,0,0,0.15);
+      --glow: 0 0 8px rgba(0,102,255,0.35), 0 0 18px rgba(0,102,255,0.18);
+      --glow-2: 0 0 8px rgba(138,43,226,0.30), 0 0 18px rgba(138,43,226,0.18);
+    }
+
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--fg);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(124,77,255,0.25), transparent 60%),
+        radial-gradient(900px 500px at 90% 0%, rgba(0,255,213,0.18), transparent 60%),
+        linear-gradient(180deg, var(--bg), var(--bg-2) 60%);
+      background-attachment: fixed;
+    }
+    /* Avoid horizontal scroll on small viewports */
+    html, body { overflow-x: hidden; }
+    body::before {
+      content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        repeating-linear-gradient(0deg, rgba(120,200,255,0.06) 0 1px, transparent 1px 40px),
+        repeating-linear-gradient(90deg, rgba(120,200,255,0.06) 0 1px, transparent 1px 40px);
+      transform: perspective(1000px) rotateX(35deg) translateY(-15%);
+      filter: blur(0.2px);
+      opacity: 0.45;
+      animation: gridShift 18s linear infinite;
+    }
+    @keyframes gridShift { 0% { background-position: 0 0, 0 0; } 50% { background-position: 0 200px, 180px 0; } 100% { background-position: 0 0, 0 0; } }
+
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: linear-gradient(180deg, rgba(10,16,40,0.65), rgba(8,12,30,0.55));
+      backdrop-filter: blur(10px) saturate(115%);
+      border-bottom: 1px solid var(--panel-border);
+      box-shadow: 0 4px 18px var(--shadow), 0 0 24px rgba(124,77,255,0.15) inset;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .titlebar { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+    .titlebar h1 { font-size: 22px; margin: 0; letter-spacing: 1px; font-weight: 900;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      text-shadow: 0 0 20px rgba(0,255,213,0.25);
+    }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .btn {
+      appearance: none; border: 1px solid var(--panel-border); color: var(--fg);
+      background: radial-gradient(120% 120% at 50% 0%, var(--panel), var(--panel-2));
+      padding: 8px 12px; border-radius: 12px; cursor: pointer; font-weight: 700;
+      transition: transform 0.1s ease, box-shadow 0.25s ease, background 0.3s ease, border-color 0.3s ease;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px var(--shadow), var(--glow-2); border-color: rgba(124,77,255,0.35); }
+    .btn:active { transform: translateY(0); }
+    .btn.primary { border-color: rgba(0,255,213,0.45); background: linear-gradient(180deg, rgba(0,255,213,0.12), rgba(0,255,213,0.06)); color: #cafff7; box-shadow: var(--glow); }
+    .btn.accent { border-color: rgba(124,77,255,0.45); background: linear-gradient(180deg, rgba(124,77,255,0.14), rgba(124,77,255,0.06)); color: #efe7ff; box-shadow: var(--glow-2); }
+    .btn.warn { border-color: rgba(255,179,0,0.35); color: #fff4d6; background: linear-gradient(180deg, rgba(255,179,0,0.14), rgba(255,179,0,0.06)); }
+
+    nav { display: grid; grid-auto-flow: column; gap: 8px; overflow-x: auto; padding: 10px 0; }
+    nav .tab { white-space: nowrap; position: relative; overflow: hidden; }
+    nav .tab.primary { box-shadow: var(--glow); border-color: rgba(0,255,213,0.45); }
+    nav .tab.primary::after { content: ""; position: absolute; inset: -2px; border-radius: 14px; pointer-events: none;
+      background: radial-gradient(60% 60% at 50% -20%, rgba(0,255,213,0.35), transparent 70%);
+      opacity: 0.9;
+    }
+    nav .tab::before { content: ""; position: absolute; left: 12px; right: 12px; bottom: 6px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      transform: scaleX(0); transform-origin: left; transition: transform 240ms ease; }
+    nav .tab:hover::before { transform: scaleX(1); }
+
+    main { padding: 12px 16px 40px; }
+    .grid {
+      display: grid; gap: 16px;
+      grid-template-columns: repeat(12, 1fr);
+    }
+    .panel {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--panel-border);
+      border-radius: 16px; padding: 16px; box-shadow: 0 10px 28px var(--shadow), 0 0 28px rgba(124,77,255,0.08);
+      position: relative; /* for help button positioning */
+      backdrop-filter: blur(8px) saturate(120%);
+    }
+    .panel::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.0) 30% 70%, rgba(255,255,255,0.06));
+      transform: translateX(-120%); }
+    .panel:hover::after { animation: sheen 800ms ease forwards; }
+    @keyframes sheen { to { transform: translateX(120%); } }
+    .hidden { display: none !important; }
+    /* Home grid cards */
+  .game-card { display:flex; gap:12px; align-items:center; justify-content:flex-start; min-height:64px; text-align:left; transition: transform 0.12s ease, box-shadow 0.25s ease; }
+    .game-emoji { font-size:26px; line-height:1; }
+  .game-title { font-weight:800; margin-top:2px; letter-spacing: 0.2px; }
+  .badge { display:inline-block; font-size:10px; padding:2px 6px; border-radius:999px; background:rgba(124,77,255,0.25); color:#EDE9FE; border:1px solid rgba(124,77,255,0.45); margin-left:8px; box-shadow: var(--glow-2); }
+  .game-card:hover { transform: translateY(-2px); box-shadow: 0 10px 22px var(--shadow), var(--glow-2); }
+  .fav-btn { cursor:pointer; margin-left:10px; font-size:14px; opacity:0.9; }
+  .fav-on { color: #facc15; }
+
+    /* Per-game help button */
+    .help-btn {
+      position: absolute; top: 10px; right: 10px;
+      width: 28px; height: 28px; border-radius: 50%;
+      display: grid; place-items: center; font-weight: 800;
+      background: rgba(124,77,255,0.22); color: #e9ddff; border: 1px solid rgba(124,77,255,0.55);
+      box-shadow: 0 2px 8px var(--shadow), var(--glow-2);
+    }
+    .help-btn:hover { filter: brightness(1.05); }
+
+    /* Help modal */
+  .modal { position: fixed; inset: 0; background: radial-gradient(60% 40% at 50% 30%, rgba(124,77,255,0.18), transparent), rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 200; }
+    .modal.show { display: flex; }
+  .modal-dialog { max-width: 560px; width: calc(100% - 32px); background: linear-gradient(180deg, var(--panel), var(--panel-2)); border:1px solid var(--panel-border); border-radius: 16px; box-shadow: 0 20px 48px var(--shadow), var(--glow-2); backdrop-filter: blur(10px); }
+  .modal-header { display:flex; align-items:center; justify-content: space-between; gap:8px; padding: 12px 14px; border-bottom: 1px solid var(--panel-border); }
+    .modal-title { font-size: 16px; font-weight: 800; }
+    .modal-close { appearance:none; background: transparent; border: 1px solid rgba(255,255,255,0.22); color: var(--fg); border-radius: 10px; padding: 4px 10px; cursor: pointer; }
+    .modal-body { padding: 14px; color: var(--fg); }
+
+    /* Section layout */
+    .section { max-width: 1100px; margin: 0 auto; }
+  .section h2 { margin-top: 0; font-size: 22px; letter-spacing: 0.4px; font-weight: 900; text-shadow: 0 0 14px rgba(0,255,213,0.18); }
+    .meta { color: var(--muted); font-size: 12px; }
+
+    /* Memory Match */
+    .memory-wrap { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .memory-stats { display:flex; gap:12px; align-items:center; flex-wrap: wrap; }
+    .memory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .card {
+      position: relative; aspect-ratio: 1/1; border-radius: 12px; cursor: pointer;
+      transform-style: preserve-3d; transition: transform 0.3s ease;
+      user-select: none; outline: none; border: 1px solid rgba(255,255,255,0.08);
+      background: #0b1324;
+    }
+    .card::after { content: ""; position: absolute; inset: 0; border-radius: 12px; pointer-events: none; opacity: 0; transform: translateX(-120%);
+      background: linear-gradient(120deg, rgba(255,255,255,0.10), rgba(255,255,255,0) 30% 70%, rgba(255,255,255,0.10)); }
+    .card-inner { position: absolute; inset: 0; display: grid; place-items: center; font-size: 36px; }
+    .card .front { backface-visibility: hidden; transform: rotateY(180deg); }
+    .card .back { backface-visibility: hidden; transform: rotateY(0deg); color: #cbd5e1; }
+    .card.flipped { transform: rotateY(180deg); }
+    .card.flipped::after { animation: sheen 850ms ease forwards; }
+    .card.matched { background: #052e2b; border-color: rgba(34,197,94,0.6); box-shadow: 0 0 16px rgba(34,197,94,0.25) inset; animation: matchedPulse 1800ms ease-in-out infinite; }
+    @keyframes matchedPulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.12); } }
+
+  /* Reaction Timer */
+    .reaction-board { height: 220px; display:grid; place-items:center; border-radius: 12px; }
+    .reaction-ready { background: #4b5563; }
+    .reaction-wait { background: #7c2d12; }
+  .reaction-go { background: #065f46; animation: pulseGlow 1200ms ease-in-out infinite; box-shadow: 0 0 16px rgba(34,197,94,0.35) inset; }
+    .reaction-text { font-size: 22px; text-align: center; }
+  @keyframes pulseGlow { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.15); } }
+  @keyframes shake { 0%,100% { transform: translateX(0);} 25% { transform: translateX(-6px);} 75% { transform: translateX(6px);} }
+  .shake { animation: shake 420ms ease; }
+
+    /* Doodle Canvas */
+    .toolbar { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+    canvas { background: #0b1324; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; touch-action: none; }
+
+    /* Breathing Pacer */
+    .center { display:grid; place-items:center; }
+    .breath-circle { width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #14532d, #052e2b 60%); border: 2px solid rgba(34,197,94,0.4);
+      transform: scale(0.6); transition: transform 1s ease-in-out; box-shadow: 0 0 40px rgba(34,197,94,0.15) inset; }
+    .breath-text { margin-top: 10px; font-size: 18px; color: #bbf7d0; }
+
+    /* Trivia */
+    .quiz-q { font-weight: 700; margin-bottom: 10px; }
+    .quiz-choices { display:grid; gap:8px; }
+    .choice { text-align: left; }
+    .choice.correct { outline: 2px solid var(--accent); }
+    .choice.wrong { outline: 2px solid var(--danger); }
+
+  /* Whack-a-Mole */
+    .mole-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .hole { aspect-ratio: 1/1; border-radius: 12px; background: #0b1324; position: relative; overflow:hidden; border:1px solid rgba(255,255,255,0.08); }
+  .mole { position:absolute; bottom:-80%; left:0; right:0; margin:auto; width:80%; height:80%; display:grid; place-items:center; font-size:40px; transition: bottom 0.15s ease; transform-origin: bottom center; }
+  .mole.up { bottom: 0; animation: molePop 160ms cubic-bezier(.2,.8,.2,1); }
+  .mole.hit { animation: moleHit 200ms ease; }
+  @keyframes molePop { 0% { transform: scale(0.9); } 100% { transform: scale(1); } }
+  @keyframes moleHit { 0% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(0.85); filter: brightness(1.3); } 100% { transform: scale(1); filter: brightness(1); } }
+
+    /* Small screens */
+    @media (max-width: 760px) {
+      .memory-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    /* Responsive tweaks */
+    @media (max-width: 980px) {
+      .titlebar { flex-wrap: wrap; gap: 8px; }
+      .controls { width: 100%; justify-content: flex-start; }
+      .container { padding: 12px; }
+    }
+    @media (max-width: 760px) {
+      /* Home grid: 2 columns on phones */
+      #game-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      /* Reaction: stack panels */
+      #section-reaction .grid { grid-template-columns: 1fr !important; }
+      #section-reaction .grid > .panel { grid-column: 1 / -1 !important; }
+    }
+    @media (max-width: 520px) {
+      /* Home grid: collapse to 1 column on very small devices */
+      #game-grid { grid-template-columns: 1fr !important; }
+      /* Memory cards: 3 columns to keep taps large */
+      .memory-grid { grid-template-columns: repeat(3, 1fr); }
+      /* 2048 Row: make cells flex to width */
+      #r2-cells { grid-template-columns: repeat(8, 1fr) !important; }
+      #r2-cells > .panel { padding: 6px !important; }
+    }
+
+    /* Futuristic animations */
+    @keyframes panelIn {
+      0% { opacity: 0; transform: translateY(8px) scale(0.995); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 2px 8px var(--shadow); }
+      50% { box-shadow: 0 8px 20px var(--shadow), var(--glow); }
+    }
+    @keyframes badgePulse {
+      0%,100% { transform: translateY(0); filter: brightness(1); }
+      50% { transform: translateY(-1px); filter: brightness(1.15); }
+    }
+    @keyframes wiggle {
+      0% { transform: translateY(-1px) rotate(0deg); }
+      25% { transform: translateY(-1px) rotate(-3deg); }
+      75% { transform: translateY(-1px) rotate(3deg); }
+      100% { transform: translateY(-1px) rotate(0deg); }
+    }
+    @keyframes floatEmoji {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+    @keyframes modalPop {
+      0% { opacity: 0; transform: translateY(8px) scale(0.98); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Apply animations */
+    .panel { animation: panelIn 520ms cubic-bezier(.2,.6,.2,1) both; }
+    .badge { animation: badgePulse 2600ms ease-in-out infinite; }
+    .btn.primary, nav .tab.primary { animation: glowPulse 4200ms ease-in-out infinite; }
+    #randomBtn:hover, #surprise:hover { animation: wiggle 420ms ease-in-out; }
+    .game-card:hover .game-emoji { animation: floatEmoji 1200ms ease-in-out infinite; }
+    .modal.show .modal-dialog { animation: modalPop 240ms cubic-bezier(.2,.7,.2,1) both; }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+    /* Effects toggle to disable animations */
+    .no-anim *, .no-anim *::before, .no-anim *::after { animation: none !important; transition: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container titlebar" role="banner">
+  <h1 aria-label="FunityArcade title">FunityArcade</h1>
+      <div class="controls" role="toolbar" aria-label="Global controls">
+        <button class="btn accent" id="randomBtn" title="Surprise me" aria-label="Pick a random game">🎲 Random</button>
+        <button class="btn" id="darkToggle" title="Toggle light/dark mode" aria-pressed="false">🌙 Dark</button>
+        <button class="btn" id="effectsToggle" title="Toggle animations and effects" aria-pressed="true">✨ Effects</button>
+        <button class="btn" id="soundToggle" title="Toggle sound effects" aria-pressed="true">🔊 Sound</button>
+        <button class="btn" id="musicToggle" title="Toggle background music" aria-pressed="false">🎵 Music</button>
+        <a class="btn" href="#" id="gotoHelp">ℹ️ Help</a>
+      </div>
+    </div>
+    <div class="container">
+      <nav aria-label="Games navigation">
+        <button class="btn tab primary" data-section="home">🏠 Home</button>
+        <button class="btn tab" data-section="memory">🧠 Memory Match</button>
+        <button class="btn tab" data-section="reaction">⚡ Reaction Timer</button>
+        <button class="btn tab" data-section="doodle">🎨 Doodle Canvas</button>
+        <button class="btn tab" data-section="breath">🌬️ Breathing Pacer</button>
+        <button class="btn tab" data-section="trivia">❓ Trivia Quiz</button>
+        <button class="btn tab" data-section="mole">🐹 Whack-a-Mole</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Home Console -->
+    <section id="section-home" class="section">
+      <div class="panel">
+        <h2>🎮 Mini Arcade Console</h2>
+        <div class="meta">Search and pick a game. New mini-games added!</div>
+        <div style="display:flex; gap:10px; margin:10px 0; flex-wrap:wrap; align-items:center;">
+          <input id="game-search" class="btn" placeholder="Search games…" style="flex:1; min-width:220px; text-align:left;" />
+          <select id="game-filter" class="btn" title="Filter category">
+            <option value="All">All</option>
+            <option>Favorites</option>
+            <option>Reflex</option>
+            <option>Puzzle</option>
+            <option>Memory</option>
+            <option>Word</option>
+            <option>Logic</option>
+            <option>Tools</option>
+            <option>Arcade</option>
+            <option>Trivia</option>
+            <option>Guess</option>
+          </select>
+          <button class="btn" id="surprise">🎲 Surprise</button>
+        </div>
+        <div id="recent-wrap" style="display:none; margin:8px 0 6px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <div class="meta">Recently played</div>
+            <button class="btn" id="recent-clear" title="Clear recently played" style="padding:4px 8px;">Clear</button>
+          </div>
+          <div id="recent-row" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+        </div>
+        <div id="quick-wrap" style="display:none; margin:8px 0 6px;">
+          <div class="meta" style="margin-bottom:6px;">Quick play</div>
+          <div id="quick-row" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+        </div>
+        <div id="game-grid" class="grid" style="grid-template-columns: repeat(4, 1fr);"></div>
+      </div>
+    </section>
+    <!-- Memory Match -->
+    <section id="section-memory" class="section">
+      <div class="panel">
+        <h2>🧠 Memory Match</h2>
+        <div class="meta">Flip cards to find pairs. Match all pairs in as few moves as you can.</div>
+        <div class="memory-wrap">
+          <div class="memory-stats">
+            <span>Moves: <strong id="mm-moves">0</strong></span>
+            <span>Time: <strong id="mm-time">0.0s</strong></span>
+            <button class="btn" id="mm-restart">Restart</button>
+          </div>
+          <div class="memory-grid" id="mm-grid" aria-label="Memory cards grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reaction Timer -->
+    <section id="section-reaction" class="section hidden">
+      <div class="panel">
+        <h2>⚡ Reaction Timer</h2>
+        <div class="meta">Click Start, wait for green, then click as fast as you can.</div>
+        <div class="grid" style="grid-template-columns: repeat(12, 1fr);">
+          <div class="panel reaction-board reaction-wait" id="rt-board" style="grid-column: span 8;">
+            <div class="reaction-text" id="rt-text">Press Start</div>
+          </div>
+          <div class="panel" style="grid-column: span 4; display:flex; flex-direction: column; gap: 10px;">
+            <button class="btn primary" id="rt-start">Start</button>
+            <div>Last: <strong id="rt-last">—</strong></div>
+            <div>Best: <strong id="rt-best">—</strong></div>
+            <div class="meta">Tip: Don’t click while it’s red/orange, that’s a false start.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Doodle Canvas -->
+    <section id="section-doodle" class="section hidden">
+      <div class="panel">
+        <h2>🎨 Doodle Canvas</h2>
+        <div class="meta">Unleash your inner artist. Draw with mouse or touch.</div>
+        <div class="toolbar" style="margin: 10px 0 12px;">
+          <label>Color <input type="color" id="draw-color" value="#22c55e" aria-label="Brush color" /></label>
+          <label>Size <input type="range" id="draw-size" min="1" max="40" value="6" aria-label="Brush size" /></label>
+          <button class="btn" id="draw-clear">Clear</button>
+          <button class="btn" id="draw-save">Save PNG</button>
+        </div>
+        <div class="panel">
+          <canvas id="draw-canvas" width="900" height="500" aria-label="Drawing canvas" role="img"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Breathing Pacer -->
+    <section id="section-breath" class="section hidden">
+      <div class="panel center">
+        <h2>🌬️ Breathing Pacer</h2>
+        <div class="meta">Follow the circle: Inhale • Hold • Exhale. Default 4-4-6 seconds.</div>
+        <div style="display:flex; gap:10px; margin: 10px 0; flex-wrap: wrap; align-items:center; justify-content:center;">
+          <label>Inhale <input type="number" id="br-in" min="2" max="10" value="4" style="width:60px" /></label>
+          <label>Hold <input type="number" id="br-hold" min="0" max="10" value="4" style="width:60px" /></label>
+          <label>Exhale <input type="number" id="br-out" min="2" max="12" value="6" style="width:60px" /></label>
+          <button class="btn primary" id="br-toggle">Start</button>
+          <span>Cycles: <strong id="br-cycles">0</strong></span>
+        </div>
+        <div class="breath-circle" id="br-circle" aria-label="Breathing guide"></div>
+        <div class="breath-text" id="br-text">Ready</div>
+      </div>
+    </section>
+
+    <!-- Trivia Quiz -->
+    <section id="section-trivia" class="section hidden">
+      <div class="panel">
+        <h2>❓ Trivia Quiz</h2>
+        <div class="meta">10 quick questions. See how many you can get right!</div>
+        <div class="panel">
+          <div class="quiz-q" id="q-text">Press Start to begin.</div>
+          <div class="quiz-choices" id="q-choices"></div>
+          <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+            <button class="btn primary" id="q-start">Start</button>
+            <div>Score: <strong id="q-score">0</strong>/10</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Whack-a-Mole -->
+    <section id="section-mole" class="section hidden">
+      <div class="panel">
+        <h2>🐹 Whack-a-Mole</h2>
+        <div class="meta">Tap the moles as they pop up. 30 seconds on the clock.</div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin:10px 0;">
+          <button class="btn primary" id="wm-start">Start</button>
+          <div>Score: <strong id="wm-score">0</strong></div>
+          <div>Time left: <strong id="wm-time">30</strong>s</div>
+        </div>
+        <div class="mole-grid" id="wm-grid" aria-label="Whack-a-mole grid"></div>
+      </div>
+    </section>
+
+    <!-- Help/About -->
+    <section id="section-help" class="section hidden">
+      <div class="panel">
+        <h2>ℹ️ Help & About</h2>
+        <p>This is a tiny offline mini-arcade to pass time when you're bored. Everything is in this one HTML file — no internet required.</p>
+        <ul>
+          <li>Use the tabs above to switch games.</li>
+          <li>Hit 🎲 Random for a surprise pick.</li>
+          <li>Toggle 🌙 Dark to switch themes. Your choice is remembered.</li>
+        </ul>
+        <p class="meta">Built with plain HTML, CSS, and a dash of JavaScript. Enjoy!</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container" style="opacity:0.7; font-size:12px; padding-bottom:24px;">
+    <div>Made for fun. No tracking. No network calls. Works offline.</div>
+  </footer>
+
+  <!-- Reusable Help Modal -->
+  <div id="help-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title" id="help-title">How to play</div>
+        <button class="modal-close" id="help-close" aria-label="Close help">Close</button>
+      </div>
+      <div class="modal-body" id="help-body">Instructions here…</div>
+    </div>
+  </div>
+
+  <script>
+    // State helpers
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    // ===== Audio Engine (SFX + Ambient Music) =====
+  const AudioFX = (()=>{
+      const AC = window.AudioContext || window.webkitAudioContext;
+  let ctx=null, master=null, sGain=null, mGain=null, ambientId=null;
+  const state = { soundOn: true, musicOn: false, initialized: false };
+  let currentGame = null;
+      function ensure(){
+        if (!ctx && AC){ ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+          sGain = ctx.createGain(); sGain.gain.value = state.soundOn ? 1 : 0; sGain.connect(master);
+          mGain = ctx.createGain(); mGain.gain.value = state.musicOn ? 0.18 : 0; mGain.connect(master);
+        }
+        if (ctx && ctx.state === 'suspended') ctx.resume();
+        state.initialized = !!ctx;
+      }
+      function resumeOnGesture(){
+        const once = ()=>{ ensure(); document.removeEventListener('pointerdown', once); document.removeEventListener('keydown', once); };
+        document.addEventListener('pointerdown', once, { once: true });
+        document.addEventListener('keydown', once, { once: true });
+      }
+      function setSound(on){ state.soundOn = !!on; if (sGain) sGain.gain.value = on? 1 : 0; }
+      function setMusic(on){ state.musicOn = !!on; if (mGain) mGain.gain.value = on? 0.18 : 0; if (!on) stopAmbient(); }
+      function time(){ ensure(); return ctx? ctx.currentTime : 0; }
+      function beep({freq=440,type='sine',dur=0.08,gain=0.12,attack=0.005,decay=0.06, destination=sGain}={}){
+        if (!state.soundOn) return; ensure(); if (!ctx) return; const t=time();
+        const o=ctx.createOscillator(); const g=ctx.createGain(); o.type=type; o.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gain, t+attack); g.gain.exponentialRampToValueAtTime(0.0001, t+attack+dur+decay);
+        o.connect(g); g.connect(destination||sGain); o.start(t); o.stop(t+attack+dur+decay+0.02);
+      }
+      function noise({dur=0.15,gain=0.12}={}){ if(!state.soundOn) return; ensure(); if(!ctx) return; const t=time();
+        const buffer = ctx.createBuffer(1, ctx.sampleRate*dur, ctx.sampleRate); const data = buffer.getChannelData(0); for (let i=0;i<data.length;i++) data[i] = (Math.random()*2-1)*0.6;
+        const src = ctx.createBufferSource(); src.buffer = buffer; const g=ctx.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+        src.connect(g); g.connect(sGain); src.start(t); src.stop(t+dur+0.01);
+      }
+      function chord(freqs=[440,660,880], dur=0.18, type='sine', gain=0.08){ freqs.forEach((f,i)=>beep({freq:f, type, dur, gain: gain*(1- i*0.1)})); }
+      function sequence(list){ // list: [{t,freq,dur,type,gain}]
+        ensure(); if(!ctx) return; const t0=time(); list.forEach(it=>{ setTimeout(()=>beep(it), (it.t||0)*1000); }); }
+      // Deterministic helpers and public tone API
+      function seedFromString(s){ let h=0; for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) >>> 0; } return h; }
+      function rng(seed){ return ()=>{ seed = (seed*1664525 + 1013904223) >>> 0; return (seed>>>8)/0xFFFFFF; }; }
+      function tone(freq=440, dur=0.35, type='sine', gain=0.16){ beep({freq, type, dur: Math.max(0.05, dur-0.08), gain}); }
+      function gameStart(id){ if(!id) return; const baseRoots=[196,220,247,262,294,330,349]; const r=rng(seedFromString(id)); const base=baseRoots[Math.floor(r()*baseRoots.length)];
+        sequence([
+          {t:0, freq:base, dur:0.08, type:'sine', gain:0.09},
+          {t:0.10, freq:base*1.26, dur:0.09, type:'sine', gain:0.09},
+          {t:0.22, freq:base*1.5, dur:0.10, type:'sine', gain:0.10}
+        ]);
+      }
+      function gameWin(id){ if(!id){ sequence([{t:0,freq:660,dur:0.09},{t:0.10,freq:880,dur:0.10},{t:0.22,freq:990,dur:0.12},{t:0.38,freq:1320,dur:0.16}]); return; }
+        const baseRoots=[220,247,262,294,330,349,392]; const r=rng(seedFromString(id)); const base=baseRoots[Math.floor(r()*baseRoots.length)];
+        sequence([
+          {t:0, freq:base*1.0, dur:0.10, type:'triangle', gain:0.10},
+          {t:0.10, freq:base*1.26, dur:0.11, type:'triangle', gain:0.10},
+          {t:0.22, freq:base*1.5, dur:0.12, type:'triangle', gain:0.11},
+          {t:0.36, freq:base*2.0, dur:0.14, type:'sine', gain:0.12}
+        ]);
+      }
+      function startAmbient(){ if (!state.musicOn) return; ensure(); if(!ctx) return; stopAmbient(); let step=0;
+        const scale=[0,2,4,7,9]; const base=220;
+        const loop=()=>{ if(!state.musicOn){ ambientId=null; return; }
+          const n = scale[Math.floor(Math.random()*scale.length)]; const freq = base*Math.pow(2,n/12); beep({freq, type:'sine', dur:0.25, gain:0.05, destination:mGain});
+          step++; ambientId = setTimeout(loop, 420 + Math.random()*160);
+        };
+        loop();
+      }
+      function stopAmbient(){ if (ambientId){ clearTimeout(ambientId); ambientId=null; } }
+      resumeOnGesture();
+      return {
+        ensure, setSound, setMusic, startAmbient, stopAmbient,
+        tone,
+        gameStart, gameWin,
+        setCurrentGame: (id)=>{ currentGame = id; },
+        get currentGame(){ return currentGame; },
+        sfx: {
+          click: ()=>beep({freq:600, type:'sine', dur:0.06, gain:0.10}),
+          select: ()=>beep({freq:520, type:'triangle', dur:0.09, gain:0.12}),
+          ok: ()=>beep({freq:880, type:'sine', dur:0.08, gain:0.12}),
+          correct: ()=>chord([660,880,1320], 0.16, 'sine', 0.07),
+          wrong: ()=>{ beep({freq:240, type:'sawtooth', dur:0.10, gain:0.12}); setTimeout(()=>beep({freq:190, type:'sawtooth', dur:0.10, gain:0.12}), 110); },
+          error: ()=>{ beep({freq:300, type:'square', dur:0.06}); setTimeout(()=>beep({freq:240, type:'square', dur:0.10}), 80); },
+          start: ()=>chord([440,660], 0.14, 'square', 0.07),
+          stop: ()=>chord([330,220], 0.14, 'square', 0.07),
+          win: ()=>gameWin(currentGame),
+          lose: ()=>sequence([{t:0,freq:520,dur:0.08},{t:0.1,freq:390,dur:0.10},{t:0.22,freq:260,dur:0.12}]),
+          pop: ()=>{ beep({freq:760, type:'sine', dur:0.05, gain:0.10}); noise({dur:0.04, gain:0.06}); },
+          whack: ()=>beep({freq:180, type:'square', dur:0.06, gain:0.12}),
+          flip: ()=>beep({freq:520, type:'triangle', dur:0.06, gain:0.10}),
+          match: ()=>chord([660,990], 0.14, 'sine', 0.07),
+          deny: ()=>{ beep({freq:260, type:'triangle', dur:0.08}); },
+          tick: ()=>beep({freq:1200, type:'square', dur:0.03, gain:0.07}),
+          roll: ()=>noise({dur:0.25, gain:0.10}),
+          explosion: ()=>noise({dur:0.35, gain:0.18}),
+          slide: ()=>beep({freq:480, type:'sawtooth', dur:0.07, gain:0.09}),
+          levelUp: ()=>sequence([{t:0,freq:700,dur:0.08},{t:0.09,freq:880,dur:0.09},{t:0.19,freq:1040,dur:0.10}]),
+        }
+      };
+    })();
+
+    // Navigation
+  const sections = ['home','memory','reaction','doodle','breath','trivia','mole','tictactoe','rpsls','puzzle15','lightsout','simon','hangman','guess','coin','dice','typing','aim','colorguess','diff','speedmath','scramble',
+  'stopwatch','countdown','mines','numemory','nback','blackjack','highlow','spinner','clicker','cps','reflex','balloon','piano','colortap','evenodd','prime','anagram','pattern','findnum','hotcold','keyreflex','alphabet','mathquiz','capitals','connect4','snake','row2048','sudoku','arrows','help'];
+    function showSection(key) {
+      sections.forEach(s => {
+        const el = document.getElementById(`section-${s}`);
+        if (!el) return;
+        if (s === key) el.classList.remove('hidden'); else el.classList.add('hidden');
+      });
+      // aria for tabs
+      $$('.tab').forEach(btn => btn.classList.toggle('primary', btn.dataset.section === key));
+      location.hash = key;
+      // Ambient music on Home only; start jingle on game entry
+      if ((localStorage.getItem('funity-music')||'off')==='on'){
+        if (key==='home') AudioFX.startAmbient(); else AudioFX.stopAmbient();
+      }
+      // Track current game and play a short start jingle
+      if (key && key!=='home' && key!=='help') {
+        AudioFX.setCurrentGame?.(key);
+        AudioFX.gameStart?.(key);
+      } else {
+        AudioFX.setCurrentGame?.(null);
+      }
+      if (typeof recordPlay === 'function' && key !== 'home' && key !== 'help') {
+        recordPlay(key);
+      }
+      if (typeof incPlayCount === 'function' && key !== 'home' && key !== 'help') {
+        incPlayCount(key);
+      }
+    }
+    $$('.tab').forEach(btn => btn.addEventListener('click', () => showSection(btn.dataset.section)));
+    $('#gotoHelp').addEventListener('click', (e) => { e.preventDefault(); showSection('help'); });
+    $('#randomBtn').addEventListener('click', () => {
+      AudioFX.sfx.select?.();
+      const pool = getFilteredIds();
+      const current = (location.hash || '#home').replace('#','');
+      const choices = pool.filter(id => id !== current);
+      const weighted = choices
+        .map(id=>({id, w: 1 + Math.min(10, getPlayCount(id))}))
+        .flatMap(x=>Array(x.w).fill(x.id));
+      const pick = (weighted.length? weighted[Math.floor(Math.random()*weighted.length)] : choices[0]) || pool[0] || 'memory';
+      if (pick) showSection(pick);
+    });
+
+    // Theme toggle
+    // Migrate old localStorage keys to new FunityArcade namespace
+    (function migrateKeys(){
+      const map = [
+        ['timepass-theme','funity-theme'],
+        ['timepass-favs','funity-favs'],
+        ['timepass-recent','funity-recent'],
+        ['timepass-plays','funity-plays']
+      ];
+      map.forEach(([oldK,newK])=>{
+        try {
+          if (localStorage.getItem(oldK) && !localStorage.getItem(newK)){
+            localStorage.setItem(newK, localStorage.getItem(oldK));
+          }
+        } catch {}
+      });
+    })();
+    const themeKey = 'funity-theme';
+    function applyTheme(theme) {
+      if (theme === 'light') document.body.classList.add('light'); else document.body.classList.remove('light');
+      const dark = theme !== 'light';
+      const t = document.getElementById('darkToggle');
+      t.textContent = dark ? '🌙 Dark' : '☀️ Light';
+      t.setAttribute('aria-pressed', String(dark));
+    }
+    function toggleTheme() {
+      const current = localStorage.getItem(themeKey) || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      localStorage.setItem(themeKey, next);
+      applyTheme(next);
+    }
+  document.getElementById('darkToggle').addEventListener('click', ()=>{ AudioFX.sfx.click?.(); toggleTheme(); });
+
+    // Effects (animations) toggle
+    const effectsKey = 'funity-effects';
+    function applyEffects(on) {
+      document.body.classList.toggle('no-anim', !on);
+      const b = document.getElementById('effectsToggle');
+      if (b) { b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '✨ Effects' : '✨ Effects Off'; }
+    }
+    function toggleEffects(){ const on = (localStorage.getItem(effectsKey) ?? 'on') !== 'off'; const nextOn = !on; localStorage.setItem(effectsKey, nextOn ? 'on' : 'off'); applyEffects(nextOn); }
+  document.getElementById('effectsToggle').addEventListener('click', ()=>{ AudioFX.sfx.click?.(); toggleEffects(); });
+
+    // Sound/Music toggles
+    const soundKey='funity-sound', musicKey='funity-music';
+    function applySound(on){ const b=$('#soundToggle'); b?.setAttribute('aria-pressed', String(on)); if (b) b.textContent = on? '🔊 Sound' : '🔇 Sound Off'; localStorage.setItem(soundKey, on?'on':'off'); AudioFX.setSound(on); }
+    function applyMusic(on){ const b=$('#musicToggle'); b?.setAttribute('aria-pressed', String(on)); if (b) b.textContent = on? '🎵 Music' : '🎵 Music Off'; localStorage.setItem(musicKey, on?'on':'off'); AudioFX.setMusic(on); }
+    $('#soundToggle').addEventListener('click', ()=>{ const on=(localStorage.getItem(soundKey)||'on')!=='off'; applySound(!on); });
+    $('#musicToggle').addEventListener('click', ()=>{ const on=(localStorage.getItem(musicKey)||'off')==='on'; applyMusic(!on); if (!on && (location.hash.replace('#','')||'home')==='home') AudioFX.startAmbient(); else AudioFX.stopAmbient(); });
+
+  // Initialize section from hash and theme
+  applyTheme(localStorage.getItem(themeKey) || 'dark');
+  applyEffects((localStorage.getItem(effectsKey) ?? 'on') !== 'off');
+  applySound((localStorage.getItem(soundKey) ?? 'on') !== 'off');
+  applyMusic((localStorage.getItem(musicKey) ?? 'off') === 'on');
+    const initial = (location.hash || '#home').replace('#','');
+    if (sections.includes(initial)) showSection(initial); else showSection('home');
+  // Inject help buttons after initial DOM is ready; re-run after each dynamic game register
+  requestAnimationFrame(injectHelpButtons);
+
+    // Game registry and Home grid
+  const GAME_REG = [];
+    // Mark latest games as NEW in Home grid
+    const NEW_IDS = new Set(['stopwatch','countdown','mines','numemory','nback','blackjack','highlow','spinner','clicker','cps','reflex','balloon','piano','colortap','evenodd','prime','anagram','pattern','findnum','hotcold','keyreflex','alphabet','mathquiz','capitals','connect4','snake','row2048','sudoku','arrows']);
+    function registerGame(id, title, emoji, sectionId) { GAME_REG.push({ id, title, emoji, sectionId }); }
+    // Categories
+    const CAT = {
+      memory:'Memory', reaction:'Reflex', doodle:'Tools', breath:'Tools', trivia:'Trivia', mole:'Arcade', tictactoe:'Arcade', rpsls:'Arcade', puzzle15:'Puzzle', lightsout:'Puzzle', simon:'Memory', hangman:'Word', guess:'Guess', coin:'Tools', dice:'Tools', typing:'Word', aim:'Reflex', colorguess:'Reflex', diff:'Reflex', speedmath:'Logic', scramble:'Word',
+      stopwatch:'Tools', countdown:'Tools', mines:'Puzzle', numemory:'Memory', nback:'Memory', blackjack:'Arcade', highlow:'Guess', spinner:'Tools', clicker:'Reflex', cps:'Reflex', reflex:'Reflex', balloon:'Reflex', piano:'Tools', colortap:'Reflex', evenodd:'Logic', prime:'Logic', anagram:'Word', pattern:'Memory', findnum:'Puzzle', hotcold:'Guess', keyreflex:'Reflex', alphabet:'Word', mathquiz:'Logic', capitals:'Trivia', connect4:'Puzzle', snake:'Arcade', row2048:'Puzzle', sudoku:'Logic', arrows:'Reflex'
+    };
+    // Favorites
+  const favKey='funity-favs';
+    function getFavs(){ try { return JSON.parse(localStorage.getItem(favKey)||'[]'); } catch { return []; } }
+    function setFavs(list){ localStorage.setItem(favKey, JSON.stringify(list)); }
+    function isFav(id){ return getFavs().includes(id); }
+    function toggleFav(id){ const cur=new Set(getFavs()); if(cur.has(id)) cur.delete(id); else cur.add(id); setFavs([...cur]); buildGameGrid(); }
+
+  // Descriptions (tooltips) also used for How-to-Play
+    const DESCR = {
+      memory:'Match pairs', reaction:'Click when green', doodle:'Draw and save PNG', breath:'Inhale-Hold-Exhale', trivia:'10 mixed questions', mole:'Tap moles', tictactoe:'2P game', rpsls:'Vs CPU', puzzle15:'Slide tiles', lightsout:'Toggle off all', simon:'Repeat sequence', hangman:'Guess letters', guess:'1-100', coin:'Heads or tails', dice:'Roll two dice', typing:'30s typing', aim:'Click targets', colorguess:'Hex color match', diff:'Find odd tile', speedmath:'30s math', scramble:'Unscramble word',
+      stopwatch:'Simple timer', countdown:'Count down seconds', mines:'5×5 mines', numemory:'Recall number', nback:'Match previous', blackjack:'21 vs dealer', highlow:'Guess up/down', spinner:'1-10 spinner', clicker:'Click in 10s', cps:'Clicks per second', reflex:'Stop in zone', balloon:'Pop balloons', piano:'Play tones', colortap:'Word vs color', evenodd:'Parity check', prime:'Prime or not', anagram:'Find anagram', pattern:'Grow sequence', findnum:'1..25 in order', hotcold:'Warmer/Colder', keyreflex:'Press shown key', alphabet:'A→Z typing', mathquiz:'Mixed ops', capitals:'Country capitals', connect4:'4 in a row', snake:'Tiny snake', row2048:'1×8 2048', sudoku:'4×4 mini', arrows:'Arrow keys'
+    };
+
+    // Help modal logic
+    const helpModal = { el: null, body: null, title: null, closeBtn: null };
+    function initHelpModal(){
+      helpModal.el = document.getElementById('help-modal');
+      helpModal.body = document.getElementById('help-body');
+      helpModal.title = document.getElementById('help-title');
+      helpModal.closeBtn = document.getElementById('help-close');
+      helpModal.closeBtn?.addEventListener('click', hideHelp);
+      helpModal.el?.addEventListener('click', (e)=>{ if (e.target === helpModal.el) hideHelp(); });
+      window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') hideHelp(); });
+    }
+    function showHelp(title, html){
+      initHelpModal();
+      if (helpModal.title) helpModal.title.textContent = title || 'How to play';
+      if (helpModal.body) helpModal.body.innerHTML = html || '';
+      helpModal.el?.classList.add('show');
+    }
+    function hideHelp(){ helpModal.el?.classList.remove('show'); }
+
+    function injectHelpButtons(){
+      // For each game section (id starts with section- and not home/help), add a top-right ? button
+      $$('section[id^="section-"]').forEach(sec => {
+        const id = sec.id.replace('section-','');
+        if (id === 'home' || id === 'help') return;
+        const panel = sec.querySelector('.panel');
+        if (!panel) return;
+        if (panel.querySelector('.help-btn')) return; // avoid duplicate
+        const btn = document.createElement('button');
+        btn.className = 'btn help-btn';
+        btn.type = 'button';
+        btn.setAttribute('aria-label','How to play');
+        btn.title = 'How to play';
+        btn.textContent = '?';
+        btn.addEventListener('click', ()=>{
+          const reg = GAME_REG.find(g => g.sectionId === id);
+          const title = reg ? `${reg.emoji} ${reg.title}` : 'How to play';
+          const tip = DESCR[id] || 'Have fun!';
+          const extra = panel.querySelector('.meta')?.textContent || '';
+          const html = `<div style="line-height:1.5">${extra ? `<div>${extra}</div>`:''}<div style="margin-top:${extra?8:0}px; color:var(--muted)">${tip}</div></div>`;
+          showHelp(title, html);
+        });
+        panel.appendChild(btn);
+      });
+    }
+
+    // Observe DOM changes to auto-inject help buttons for dynamically added sections
+    const mainEl = document.querySelector('main');
+    if (window.MutationObserver && mainEl){
+      const mo = new MutationObserver((muts)=>{
+        if (muts.some(m=>m.addedNodes && m.addedNodes.length)){
+          injectHelpButtons();
+        }
+      });
+      mo.observe(mainEl, { childList: true, subtree: true });
+    }
+
+    function getFilteredIds(){
+      const q = (document.getElementById('game-search')?.value || '').toLowerCase();
+      const sel = document.getElementById('game-filter')?.value || 'All';
+      const favs = getFavs();
+      let list = GAME_REG
+        .filter(g => g.title.toLowerCase().includes(q));
+      if (sel==='Favorites') list = list.filter(g => favs.includes(g.id));
+      else if (sel!=='All') list = list.filter(g => (CAT[g.id]||'Misc')===sel);
+      return list.map(g=>g.sectionId);
+    }
+
+    function buildGameGrid() {
+      const grid = document.getElementById('game-grid'); if (!grid) return;
+      grid.innerHTML = '';
+      const q = (document.getElementById('game-search')?.value || '').toLowerCase();
+      const sel = document.getElementById('game-filter')?.value || 'All';
+      const favs = getFavs();
+      GAME_REG
+        .filter(g => g.title.toLowerCase().includes(q))
+        .filter(g => sel==='All' || sel==='Favorites' ? true : (CAT[g.id]||'Misc')===sel)
+        .sort((a,b)=>{
+          if (sel==='All') { const af=favs.includes(a.id), bf=favs.includes(b.id); if (af!==bf) return af? -1 : 1; }
+          return a.title.localeCompare(b.title);
+        })
+        .forEach(g => {
+          if (sel==='Favorites' && !favs.includes(g.id)) return;
+          const card = document.createElement('button');
+          card.className = 'panel btn game-card'; card.style.padding = '14px';
+          card.title = (DESCR[g.id] ? `${g.title} — ${DESCR[g.id]}` : g.title);
+          const badge = NEW_IDS.has(g.id) ? '<span class="badge">NEW</span>' : '';
+          const favStar = favs.includes(g.id) ? '<span class="fav-btn fav-on" aria-label="Unfavorite">★</span>' : '<span class="fav-btn" aria-label="Favorite">☆</span>';
+          card.innerHTML = `<div class="game-emoji">${g.emoji}</div><div><div class="game-title">${g.title}${badge}${favStar}</div></div>`;
+          card.addEventListener('click', ()=> { AudioFX.sfx.select?.(); showSection(g.sectionId); });
+          // Toggle favorite when clicking star
+          const starEl = card.querySelector('.fav-btn');
+          starEl.addEventListener('click', (e)=>{ e.stopPropagation(); toggleFav(g.id); });
+          grid.appendChild(card);
+        });
+    }
+    document.getElementById('game-search')?.addEventListener('input', buildGameGrid);
+    document.getElementById('game-filter')?.addEventListener('change', buildGameGrid);
+    document.getElementById('surprise')?.addEventListener('click', ()=>{
+      const pool = GAME_REG.map(g=>g.sectionId); const pick = pool[Math.floor(Math.random()*pool.length)] || 'memory'; showSection(pick);
+    });
+
+    // Recently played tracking
+  const recentKey = 'funity-recent';
+    function getRecent(){ try { return JSON.parse(localStorage.getItem(recentKey)||'[]'); } catch { return []; } }
+    function setRecent(list){ localStorage.setItem(recentKey, JSON.stringify(list)); }
+    function recordPlay(id){
+      const ids = new Set(GAME_REG.map(g=>g.sectionId));
+      if (!ids.has(id)) return; // only games
+      const cur = getRecent().filter(x=>x!==id);
+      cur.unshift(id);
+      setRecent(cur.slice(0, 8));
+      buildRecentRow();
+    }
+    function buildRecentRow(){
+      const row = document.getElementById('recent-row'); const wrap = document.getElementById('recent-wrap'); if(!row||!wrap) return;
+      const rec = getRecent();
+      wrap.style.display = rec.length ? 'block' : 'none';
+      row.innerHTML = '';
+      rec.forEach(id=>{
+        const g = GAME_REG.find(x=>x.sectionId===id); if(!g) return;
+        const b = document.createElement('button'); b.className='btn'; b.style.display='flex'; b.style.alignItems='center'; b.style.gap='8px';
+        b.innerHTML = `<span style="font-size:18px;">${g.emoji}</span><span>${g.title}</span>`;
+  b.addEventListener('click', ()=> { AudioFX.sfx.select?.(); showSection(g.sectionId); });
+        row.appendChild(b);
+      });
+    }
+    document.getElementById('recent-clear')?.addEventListener('click', ()=>{ localStorage.removeItem(recentKey); buildRecentRow(); });
+
+    // Quick Play (by counts)
+  const playKey='funity-plays';
+    function getPlayMap(){ try { return JSON.parse(localStorage.getItem(playKey)||'{}'); } catch { return {}; } }
+    function setPlayMap(m){ localStorage.setItem(playKey, JSON.stringify(m)); }
+    function incPlayCount(sectionId){ const m=getPlayMap(); m[sectionId]=(m[sectionId]||0)+1; setPlayMap(m); buildQuickRow(); }
+    function getPlayCount(sectionId){ const m=getPlayMap(); return m[sectionId]||0; }
+    function buildQuickRow(){
+      const row = document.getElementById('quick-row'); const wrap = document.getElementById('quick-wrap'); if(!row||!wrap) return;
+      const m = getPlayMap(); const entries = Object.entries(m);
+      if (!entries.length){ wrap.style.display='none'; row.innerHTML=''; return; }
+      const top = entries.sort((a,b)=>b[1]-a[1]).slice(0,8).map(([id,_])=>id);
+      row.innerHTML=''; wrap.style.display='block';
+      top.forEach(id=>{
+        const g = GAME_REG.find(x=>x.sectionId===id); if(!g) return;
+        const b = document.createElement('button'); b.className='btn'; b.style.display='flex'; b.style.alignItems='center'; b.style.gap='8px';
+        b.title = `${g.title} — played ${getPlayCount(id)} times`;
+        b.innerHTML = `<span style="font-size:18px;">${g.emoji}</span><span>${g.title}</span>`;
+  b.addEventListener('click', ()=> { AudioFX.sfx.select?.(); showSection(g.sectionId); });
+        row.appendChild(b);
+      });
+    }
+
+    // Memory Match implementation
+  registerGame('memory','Memory Match','🧠','memory');
+  (function memoryMatch(){
+      const emojiSet = ['🍎','🍌','🍇','🍓','🍒','🍍','🥝','🍉','🍑','🍋','🥑','🍊'];
+      const grid = $('#mm-grid');
+      const movesEl = $('#mm-moves');
+      const timeEl = $('#mm-time');
+      const restartBtn = $('#mm-restart');
+      let cards = [];
+      let first = null, second = null, lock = false, moves = 0, matched = 0; 
+      let timerStart = 0, timerId = null;
+
+      function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+      function startTimer(){ if (timerId) return; timerStart = performance.now(); timerId = setInterval(()=>{
+        const t = (performance.now() - timerStart)/1000; timeEl.textContent = t.toFixed(1)+'s';
+      }, 100);
+      }
+      function stopTimer(){ if (timerId){ clearInterval(timerId); timerId = null; } }
+
+      function newGame(){
+        moves = 0; matched = 0; movesEl.textContent = '0'; timeEl.textContent = '0.0s'; stopTimer();
+        const pick = shuffle(emojiSet.slice()).slice(0,8);
+        const set = shuffle([...pick, ...pick]);
+        grid.innerHTML = '';
+        first = second = null; lock = false;
+        set.forEach((em, idx) => {
+          const card = document.createElement('button');
+          card.className = 'card';
+          card.setAttribute('aria-label', 'Card');
+          card.innerHTML = `<div class="card-inner back">❔</div><div class="card-inner front">${em}</div>`;
+          card.dataset.value = em;
+          card.dataset.index = String(idx);
+          card.addEventListener('click', () => { AudioFX.sfx.flip?.(); flip(card); });
+          grid.appendChild(card);
+        });
+      }
+
+      function flip(card){
+        if (lock || card.classList.contains('matched') || card === first) return;
+        if (!timerId) startTimer();
+        card.classList.add('flipped');
+        if (!first) { first = card; return; }
+        second = card; lock = true; moves++; movesEl.textContent = String(moves);
+        if (first.dataset.value === second.dataset.value){
+          first.classList.add('matched');
+          second.classList.add('matched');
+          AudioFX.sfx.match?.();
+          afterMatch();
+        } else {
+          AudioFX.sfx.deny?.();
+          setTimeout(()=>{
+            first.classList.remove('flipped');
+            second.classList.remove('flipped');
+            resetPick();
+          }, 700);
+        }
+      }
+      function afterMatch(){
+        matched += 2; const done = matched === 16; 
+        setTimeout(()=>{ resetPick(); if (done){ stopTimer();
+          setTimeout(()=> alert(`Nice! Completed in ${moves} moves, time ${timeEl.textContent}`), 100);
+        } }, 250);
+      }
+      function resetPick(){ first = null; second = null; lock = false; }
+
+      restartBtn.addEventListener('click', ()=>{ AudioFX.sfx.start?.(); newGame(); });
+      newGame();
+    })();
+
+    // Reaction Timer
+  registerGame('reaction','Reaction Timer','⚡','reaction');
+  (function reaction(){
+      const board = $('#rt-board');
+      const text = $('#rt-text');
+      const startBtn = $('#rt-start');
+      const lastEl = $('#rt-last');
+      const bestEl = $('#rt-best');
+      let state = 'idle'; // idle|waiting|ready|go
+      let timeoutId = null; let startAt = 0; let best = Infinity;
+
+      function setState(s){
+        state = s; board.classList.remove('reaction-wait','reaction-ready','reaction-go');
+        if (s==='idle'){ board.classList.add('reaction-wait'); text.textContent = 'Press Start'; }
+        if (s==='waiting'){ board.classList.add('reaction-wait'); text.textContent = 'Wait for green…'; }
+        if (s==='ready'){ board.classList.add('reaction-ready'); text.textContent = 'Get ready…'; }
+        if (s==='go'){ board.classList.add('reaction-go'); text.textContent = 'GO! Click!'; }
+      }
+
+      function start(){
+        clearTimeout(timeoutId); setState('ready');
+        AudioFX.sfx.start?.();
+        const delay = 500 + Math.random()*700; // short ready phase
+        timeoutId = setTimeout(()=>{
+          setState('waiting');
+          const delay2 = 1200 + Math.random()*2200;
+          timeoutId = setTimeout(()=>{ setState('go'); AudioFX.sfx.tick?.(); startAt = performance.now(); }, delay2);
+        }, delay);
+      }
+
+      function clickBoard(){
+        if (state==='waiting' || state==='ready'){
+          text.textContent = 'Too soon! False start.';
+          // add a quick shake feedback
+          board.classList.add('shake'); setTimeout(()=>board.classList.remove('shake'), 420);
+          AudioFX.sfx.error?.();
+          setState('idle'); return;
+        }
+        if (state==='go'){
+          const ms = performance.now() - startAt; const s = Math.round(ms);
+          lastEl.textContent = s + ' ms';
+          if (s < best){ best = s; bestEl.textContent = s + ' ms'; }
+          AudioFX.sfx.ok?.();
+          setState('idle');
+        }
+      }
+
+      startBtn.addEventListener('click', start);
+      board.addEventListener('click', clickBoard);
+      setState('idle');
+    })();
+
+    // Doodle Canvas
+  registerGame('doodle','Doodle Canvas','🎨','doodle');
+  (function doodle(){
+      const canvas = $('#draw-canvas');
+      const ctx = canvas.getContext('2d');
+      const color = $('#draw-color');
+      const size = $('#draw-size');
+      const clearBtn = $('#draw-clear');
+      const saveBtn = $('#draw-save');
+
+      // Fit canvas to container width while keeping internal resolution sharp
+      function fit(){
+        const parent = canvas.parentElement; const w = parent.clientWidth - 4; const h = Math.min(520, Math.max(260, Math.round(w*0.55)));
+        const ratio = window.devicePixelRatio || 1;
+        canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+        canvas.width = Math.floor(w * ratio); canvas.height = Math.floor(h * ratio);
+        ctx.scale(ratio, ratio);
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = color.value; ctx.lineWidth = Number(size.value);
+        ctx.fillStyle = '#0b1324'; ctx.fillRect(0,0,w,h);
+      }
+
+      let drawing = false; let last = null;
+      function pos(e){ if (e.touches && e.touches[0]) e = e.touches[0]; const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left), y: (e.clientY - r.top) }; }
+      function down(e){ drawing = true; last = pos(e); }
+      function move(e){ if (!drawing) return; const p = pos(e); ctx.strokeStyle = color.value; ctx.lineWidth = Number(size.value); ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p; }
+      function up(){ drawing = false; }
+
+      canvas.addEventListener('mousedown', down); window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+      canvas.addEventListener('touchstart', (e)=>{ e.preventDefault(); down(e); }, {passive:false});
+      canvas.addEventListener('touchmove', (e)=>{ e.preventDefault(); move(e); }, {passive:false});
+      canvas.addEventListener('touchend', (e)=>{ e.preventDefault(); up(); }, {passive:false});
+
+      clearBtn.addEventListener('click', ()=>{ AudioFX.sfx.stop?.(); fit(); });
+      saveBtn.addEventListener('click', ()=>{
+        // export at CSS size by creating a temp canvas
+        const w = parseInt(canvas.style.width), h = parseInt(canvas.style.height);
+        const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
+        const tctx = tmp.getContext('2d'); tctx.drawImage(canvas, 0, 0, w, h);
+        const url = tmp.toDataURL('image/png');
+        const a = document.createElement('a'); a.href = url; a.download = 'doodle.png'; a.click();
+        AudioFX.sfx.ok?.();
+      });
+
+      window.addEventListener('resize', fit);
+      fit();
+    })();
+
+    // Breathing Pacer
+  registerGame('breath','Breathing Pacer','🌬️','breath');
+  (function breath(){
+      const circle = $('#br-circle');
+      const text = $('#br-text');
+      const btn = $('#br-toggle');
+      const inEl = $('#br-in');
+      const holdEl = $('#br-hold');
+      const outEl = $('#br-out');
+      const cyclesEl = $('#br-cycles');
+      let running = false; let cycleTimer = null; let cycles = 0;
+
+      function step(){
+        const i = Math.max(1, Number(inEl.value)||4);
+        const h = Math.max(0, Number(holdEl.value)||4);
+        const o = Math.max(1, Number(outEl.value)||6);
+        // Inhale
+        text.textContent = 'Inhale'; circle.style.transitionDuration = Math.max(0.6, i*0.9)+'s'; circle.style.transform = 'scale(1)';
+        cycleTimer = setTimeout(()=>{
+          // Hold
+          text.textContent = 'Hold';
+          setTimeout(()=>{
+            // Exhale
+            text.textContent = 'Exhale'; circle.style.transitionDuration = Math.max(0.6, o*0.9)+'s'; circle.style.transform = 'scale(0.6)';
+            setTimeout(()=>{ cycles++; cyclesEl.textContent = String(cycles); if (running) step(); }, o*1000);
+          }, h*1000);
+        }, i*1000);
+      }
+
+      function toggle(){
+        running = !running; btn.textContent = running ? 'Stop' : 'Start';
+        if (running){ cycles = 0; cyclesEl.textContent = '0'; AudioFX.sfx.start?.(); step(); }
+        else { clearTimeout(cycleTimer); text.textContent = 'Ready'; }
+      }
+
+      btn.addEventListener('click', toggle);
+    })();
+
+    // Trivia Quiz
+  registerGame('trivia','Trivia Quiz','❓','trivia');
+  (function quiz(){
+      const qtext = $('#q-text');
+      const qchoices = $('#q-choices');
+      const qstart = $('#q-start');
+      const qscore = $('#q-score');
+      const questions = [
+        {q:'What planet is known as the Red Planet?', c:['Mars','Venus','Jupiter','Mercury'], a:0},
+        {q:'Which animal is known as the Ship of the Desert?', c:['Camel','Horse','Elephant','Goat'], a:0},
+        {q:'How many continents are there on Earth?', c:['5','6','7','8'], a:2},
+        {q:'Which gas do plants absorb from the atmosphere?', c:['Oxygen','Carbon Dioxide','Nitrogen','Hydrogen'], a:1},
+        {q:'Who painted the Mona Lisa?', c:['Van Gogh','Leonardo da Vinci','Picasso','Rembrandt'], a:1},
+        {q:'What is H2O commonly known as?', c:['Salt','Water','Ammonia','Hydrogen'], a:1},
+        {q:'Which is the largest ocean?', c:['Atlantic','Indian','Arctic','Pacific'], a:3},
+        {q:'What is the capital of Japan?', c:['Seoul','Tokyo','Beijing','Kyoto'], a:1},
+        {q:'How many degrees are in a right angle?', c:['30','45','60','90'], a:3},
+        {q:'Which instrument has keys, pedals, and strings?', c:['Guitar','Piano','Violin','Flute'], a:1}
+      ];
+      let order = []; let idx = -1; let score = 0; let locked = false;
+      function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+  function start(){ order = shuffle([...Array(questions.length)].map((_,i)=>i)); idx = 0; score = 0; locked = false; qscore.textContent = '0'; AudioFX.sfx.start?.(); render(); }
+      function render(){
+        const i = order[idx]; const item = questions[i]; qtext.textContent = `Q${idx+1}. ${item.q}`; qchoices.innerHTML = '';
+        item.c.forEach((t, ci) => {
+          const b = document.createElement('button'); b.className='btn choice'; b.textContent = t; b.addEventListener('click',()=>pick(ci)); qchoices.appendChild(b);
+        });
+      }
+      function pick(ci){ if (locked) return; locked = true; const i = order[idx]; const item = questions[i];
+        const buttons = $$('.choice', qchoices);
+        buttons.forEach((b, bi)=>{ b.disabled = true; if (bi===item.a) b.classList.add('correct'); if (bi===ci && bi!==item.a) b.classList.add('wrong'); });
+        if (ci===item.a){ score++; qscore.textContent = String(score); AudioFX.sfx.correct?.(); }
+        else { AudioFX.sfx.wrong?.(); }
+        setTimeout(()=>{ idx++; locked=false; if (idx>=order.length){ qtext.textContent = `Done! You scored ${score}/10.`; qchoices.innerHTML=''; qstart.textContent='Restart'; AudioFX.sfx.win?.(); } else render(); }, 700);
+      }
+
+      qstart.addEventListener('click', start);
+    })();
+
+    // Whack-a-Mole
+  registerGame('mole','Whack-a-Mole','🐹','mole');
+  (function mole(){
+      const grid = $('#wm-grid');
+      const startBtn = $('#wm-start');
+      const scoreEl = $('#wm-score');
+      const timeEl = $('#wm-time');
+      const holes = 9; const moleEmoji = '🐹';
+      let upIndex = -1; let score = 0; let running = false; let gameTimer = null; let moleTimer = null; let timeLeft = 30;
+
+      function build(){ grid.innerHTML=''; for(let i=0;i<holes;i++){ const h = document.createElement('div'); h.className='hole'; const m = document.createElement('div'); m.className='mole'; m.textContent=moleEmoji; h.appendChild(m); h.addEventListener('click', ()=>hit(i)); grid.appendChild(h);} }
+      function randomHole(){ return Math.floor(Math.random()*holes); }
+      function pop(){
+        if (!running) return; const idx = randomHole(); if (idx === upIndex) return pop();
+        const prev = grid.children[upIndex]; if (prev) prev.firstChild.classList.remove('up');
+        upIndex = idx; const el = grid.children[idx].firstChild; el.classList.add('up');
+        const stay = 500 + Math.random()*800; moleTimer = setTimeout(()=>{ el.classList.remove('up'); upIndex = -1; setTimeout(pop, 200 + Math.random()*400); }, stay);
+      }
+      function hit(i){ if (!running) return; if (i===upIndex){ score++; scoreEl.textContent=String(score); const el = grid.children[i].firstChild; el.classList.remove('up'); el.classList.add('hit'); setTimeout(()=>el.classList.remove('hit'), 200); AudioFX.sfx.whack?.(); upIndex=-1; }}
+      function start(){ if (running) return; running = true; score = 0; scoreEl.textContent='0'; timeLeft = 30; timeEl.textContent='30'; startBtn.textContent='Stop';
+        AudioFX.sfx.start?.(); pop(); gameTimer = setInterval(()=>{ timeLeft--; timeEl.textContent=String(timeLeft); if (timeLeft<=0){ stop(); AudioFX.sfx.stop?.(); alert(`Time! Score: ${score}`); } }, 1000); }
+      function stop(){ running=false; startBtn.textContent='Start'; clearInterval(gameTimer); clearTimeout(moleTimer); const prev = grid.children[upIndex]; if (prev) prev.firstChild.classList.remove('up'); upIndex=-1; }
+
+      startBtn.addEventListener('click', ()=> running ? stop() : start());
+      build();
+    })();
+
+    // ================= New Mini-Games =================
+    // 1) Tic-Tac-Toe (2P)
+    registerGame('tictactoe','Tic-Tac-Toe','⭕','tictactoe');
+    (function ttt(){
+      const sec = document.createElement('section'); sec.id='section-tictactoe'; sec.className='section hidden';
+      sec.innerHTML = `<div class="panel"><h2>⭕ Tic-Tac-Toe</h2><div class="meta">Two-player local. First to line up 3 wins.</div>
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:8px 0;">
+        <div>Turn: <strong id="ttt-turn">X</strong></div>
+        <button class="btn" id="ttt-reset">Reset</button>
+      </div>
+      <div id="ttt-grid" class="grid" style="grid-template-columns: repeat(3, 80px); gap:8px;"></div></div>`;
+      document.querySelector('main').prepend(sec);
+      const grid = sec.querySelector('#ttt-grid'); const turnEl = sec.querySelector('#ttt-turn');
+      let turn='X', board=Array(9).fill('');
+      const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+      function render(){ grid.innerHTML=''; board.forEach((v,i)=>{ const b=document.createElement('button'); b.className='btn'; b.style.height='80px'; b.style.fontSize='26px'; b.textContent=v||''; b.addEventListener('click',()=>play(i)); grid.appendChild(b);});}
+      function play(i){ if (board[i]) return; board[i]=turn; if (check(turn)){ alert(`${turn} wins!`); } else if (board.every(Boolean)){ alert('Draw!'); } else { turn = (turn==='X'?'O':'X'); turnEl.textContent=turn; } render(); }
+      function check(p){ if (wins.some(w=>w.every(i=>board[i]===p))){ return true; } return false; }
+      sec.querySelector('#ttt-reset').addEventListener('click', ()=>{ board=Array(9).fill(''); turn='X'; turnEl.textContent=turn; render(); }); render();
+    })();
+
+    // 2) Rock-Paper-Scissors-Lizard-Spock
+    registerGame('rpsls','RPSLS','✊','rpsls');
+    (function rps(){
+      const sec = document.createElement('section'); sec.id='section-rpsls'; sec.className='section hidden';
+      sec.innerHTML = `<div class="panel"><h2>✊ Rock-Paper-Scissors-Lizard-Spock</h2><div class="meta">Beat the CPU.</div>
+      <div id="rps-out" style="margin:8px 0;">Make a choice:</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn rps" data-c="rock">🪨 Rock</button>
+        <button class="btn rps" data-c="paper">📄 Paper</button>
+        <button class="btn rps" data-c="scissors">✂️ Scissors</button>
+        <button class="btn rps" data-c="lizard">🦎 Lizard</button>
+        <button class="btn rps" data-c="spock">🖖 Spock</button>
+      </div></div>`;
+      document.querySelector('main').appendChild(sec);
+      const beats={rock:['scissors','lizard'], paper:['rock','spock'], scissors:['paper','lizard'], lizard:['spock','paper'], spock:['scissors','rock']};
+      sec.querySelectorAll('.rps').forEach(b=>b.addEventListener('click',()=>{
+        const you=b.dataset.c; const opts=Object.keys(beats); const cpu=opts[Math.floor(Math.random()*opts.length)];
+        let res='Draw'; if (you!==cpu){ res = beats[you].includes(cpu)?'You win':'You lose'; }
+        if(res==='You win') AudioFX.sfx.correct?.(); else if(res==='You lose') AudioFX.sfx.wrong?.(); else AudioFX.sfx.click?.();
+        sec.querySelector('#rps-out').textContent=`You: ${you} | CPU: ${cpu} → ${res}`;
+      }));
+    })();
+
+    // 3) 15 Puzzle
+    registerGame('puzzle15','15 Puzzle','🔢','puzzle15');
+    (function p15(){
+      const sec=document.createElement('section'); sec.id='section-puzzle15'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔢 15 Puzzle</h2><div class="meta">Slide tiles to order 1–15.</div>
+      <button class="btn" id="p15-shuffle">Shuffle</button>
+      <div id="p15-grid" class="grid" style="grid-template-columns: repeat(4, 64px); gap:6px; margin-top:8px;"></div></div>`;
+      document.querySelector('main').appendChild(sec);
+      const grid=sec.querySelector('#p15-grid'); let tiles=[];
+      function init(){ tiles=[...Array(15).keys()].map(i=>i+1); tiles.push(0); render(); }
+      function render(){ grid.innerHTML=''; tiles.forEach((n,i)=>{ const b=document.createElement('button'); b.className='btn'; b.style.height='64px'; b.textContent=n?String(n):''; if(!n) b.style.opacity='0.3'; b.addEventListener('click',()=>move(i)); grid.appendChild(b);}); }
+  function move(i){ const z=tiles.indexOf(0); const adj=[z-1,z+1,z-4,z+4]; if(adj.includes(i) && !(z%4===0 && i===z-1) && !((z+1)%4===0 && i===z+1)){ [tiles[z],tiles[i]]=[tiles[i],tiles[z]]; AudioFX.sfx.slide?.(); render(); if (isSolved()){ AudioFX.sfx.win?.(); alert('Solved!'); } }
+      }
+      function isSolved(){ return tiles.slice(0,15).every((n,i)=>n===i+1); }
+      sec.querySelector('#p15-shuffle').addEventListener('click',()=>{ for(let i=0;i<200;i++){ move([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15][Math.floor(Math.random()*16)]); } });
+      init();
+    })();
+
+    // 4) Lights Out
+    registerGame('lightsout','Lights Out','💡','lightsout');
+    (function lo(){
+      const sec=document.createElement('section'); sec.id='section-lightsout'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>💡 Lights Out</h2><div class="meta">Toggle all lights off.</div>
+      <button class="btn" id="lo-new">New</button>
+      <div id="lo-grid" class="grid" style="grid-template-columns: repeat(5, 48px); gap:6px; margin-top:8px;"></div></div>`;
+      document.querySelector('main').appendChild(sec);
+      const g=sec.querySelector('#lo-grid'); let cells=[]; function idx(r,c){return r*5+c}
+      function newGame(){ cells=[...Array(25)].map(()=>Math.random()<0.5); render(); }
+  function toggle(i){ const r=Math.floor(i/5), c=i%5; [ [r,c],[r-1,c],[r+1,c],[r,c-1],[r,c+1] ].forEach(([rr,cc])=>{ if(rr>=0&&rr<5&&cc>=0&&cc<5){ const k=idx(rr,cc); cells[k]=!cells[k]; }}); AudioFX.sfx.click?.(); render(); if (cells.every(v=>!v)){ AudioFX.sfx.win?.(); alert('Cleared!'); } }
+      function render(){ g.innerHTML=''; cells.forEach((v,i)=>{ const b=document.createElement('button'); b.className='btn'; b.style.height='48px'; b.style.background=v?'#f59e0b':'#111827'; b.textContent=''; b.addEventListener('click',()=>toggle(i)); g.appendChild(b);}); }
+      sec.querySelector('#lo-new').addEventListener('click', newGame); newGame();
+    })();
+
+    // 5) Simon
+    registerGame('simon','Simon','🔴','simon');
+    (function simon(){
+      const sec=document.createElement('section'); sec.id='section-simon'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔴 Simon</h2><div class="meta">Repeat the sequence.</div>
+      <button class="btn" id="si-start">Start</button>
+      <div style="display:grid;grid-template-columns:repeat(2,80px);gap:8px;margin-top:8px;">
+        <button class="btn si" data-i="0" style="background:#ef4444"> </button>
+        <button class="btn si" data-i="1" style="background:#22c55e"> </button>
+        <button class="btn si" data-i="2" style="background:#3b82f6"> </button>
+        <button class="btn si" data-i="3" style="background:#f59e0b"> </button>
+      </div>
+      <div id="si-info" style="margin-top:6px;">Score: 0</div></div>`;
+      document.querySelector('main').appendChild(sec);
+      let seq=[], step=0, score=0, playing=false;
+  function flash(i){ const b=sec.querySelector(`.si[data-i='${i}']`); const old=b.style.filter; b.style.filter='brightness(1.7)'; AudioFX.sfx.tick?.(); setTimeout(()=>b.style.filter=old, 250); }
+      function playSeq(){ playing=true; let i=0; const t=setInterval(()=>{ flash(seq[i]); i++; if(i>=seq.length){ clearInterval(t); playing=false; } }, 450); }
+      function next(){ seq.push(Math.floor(Math.random()*4)); playSeq(); }
+      sec.querySelector('#si-start').addEventListener('click', ()=>{ seq=[]; score=0; step=0; sec.querySelector('#si-info').textContent='Score: 0'; next(); });
+  sec.querySelectorAll('.si').forEach(b=>b.addEventListener('click',()=>{ if(playing) return; const i=Number(b.dataset.i); flash(i); if(i===seq[step]){ step++; if(step===seq.length){ score++; AudioFX.sfx.correct?.(); sec.querySelector('#si-info').textContent='Score: '+score; step=0; next(); } } else { AudioFX.sfx.wrong?.(); alert('Oops! Final score: '+score); } }));
+    })();
+
+    // 6) Hangman
+    registerGame('hangman','Hangman','🪢','hangman');
+    (function hang(){
+      const sec=document.createElement('section'); sec.id='section-hangman'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🪢 Hangman</h2><div class="meta">Guess the word in 6 mistakes.</div>
+      <div>Word: <strong id="hg-word"></strong></div>
+      <div>Mistakes: <strong id="hg-miss">0</strong>/6</div>
+      <div id="hg-letters" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;"></div>
+      <button class="btn" id="hg-new">New Word</button></div>`;
+      document.querySelector('main').appendChild(sec);
+      const words=['apple','banana','orange','grapes','kiwi','lemon','mango','peach','melon','papaya','coconut'];
+      let word='', shown=[], miss=0;
+      function newWord(){ word = words[Math.floor(Math.random()*words.length)]; shown = Array(word.length).fill('_'); miss=0; render(); }
+      function render(){ sec.querySelector('#hg-word').textContent=shown.join(' '); sec.querySelector('#hg-miss').textContent=String(miss); const L=sec.querySelector('#hg-letters'); L.innerHTML='';
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(ch=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=ch; b.addEventListener('click',()=>pick(ch.toLowerCase())); L.appendChild(b); }); }
+  function pick(ch){ let ok=false; word.split('').forEach((w,i)=>{ if(w===ch){ shown[i]=ch; ok=true; }}); if(!ok){ miss++; AudioFX.sfx.wrong?.(); if(miss>=6){ AudioFX.sfx.lose?.(); alert('You lost! Word: '+word); newWord(); return; } } if(shown.join('')===word){ AudioFX.sfx.win?.(); alert('You win!'); newWord(); } render(); }
+      sec.querySelector('#hg-new').addEventListener('click', newWord); newWord();
+    })();
+
+    // 7) Number Guess
+    registerGame('guess','Number Guess','🎯','guess');
+    (function guess(){
+      const sec=document.createElement('section'); sec.id='section-guess'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🎯 Number Guess</h2><div class="meta">Guess 1–100.</div>
+      <input id="gs-in" type="number" min="1" max="100" class="btn" style="width:100px;" />
+      <button class="btn" id="gs-go">Guess</button>
+      <div id="gs-out" style="margin-top:6px;"></div></div>`;
+      document.querySelector('main').appendChild(sec);
+      let target=1+Math.floor(Math.random()*100), tries=0; function reset(){ target=1+Math.floor(Math.random()*100); tries=0; sec.querySelector('#gs-out').textContent=''; }
+  sec.querySelector('#gs-go').addEventListener('click',()=>{ const v=Number(sec.querySelector('#gs-in').value); if(!v) return; tries++; if(v===target){ sec.querySelector('#gs-out').textContent=`Correct in ${tries} tries!`; AudioFX.sfx.win?.(); reset(); } else { sec.querySelector('#gs-out').textContent= v<target?'Higher':'Lower'; AudioFX.sfx.tick?.(); }});
+    })();
+
+    // 8) Coin Flip
+    registerGame('coin','Coin Flip','🪙','coin');
+    (function coin(){
+      const sec=document.createElement('section'); sec.id='section-coin'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🪙 Coin Flip</h2><button class="btn" id="cf-flip">Flip</button>
+      <div id="cf-out" style="margin-top:6px;">—</div><div>H: <strong id="cf-h">0</strong> T: <strong id="cf-t">0</strong></div></div>`;
+      document.querySelector('main').appendChild(sec);
+  let h=0,t=0; sec.querySelector('#cf-flip').addEventListener('click',()=>{ AudioFX.sfx.roll?.(); const v=Math.random()<0.5?'Heads':'Tails'; if(v==='Heads')h++; else t++; sec.querySelector('#cf-out').textContent=v; sec.querySelector('#cf-h').textContent=h; sec.querySelector('#cf-t').textContent=t; });
+    })();
+
+    // 9) Dice Roller
+    registerGame('dice','Dice Roller','🎲','dice');
+    (function dice(){
+      const sec=document.createElement('section'); sec.id='section-dice'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🎲 Dice Roller</h2><button class="btn" id="dr-roll">Roll</button>
+      <div id="dr-out" style="margin-top:6px; font-size:24px;">—</div></div>`;
+      document.querySelector('main').appendChild(sec);
+      function face(n){ return ['⚀','⚁','⚂','⚃','⚄','⚅'][n-1]; }
+  sec.querySelector('#dr-roll').addEventListener('click',()=>{ AudioFX.sfx.roll?.(); const a=1+Math.floor(Math.random()*6), b=1+Math.floor(Math.random()*6); sec.querySelector('#dr-out').textContent = face(a)+' '+face(b)+`  (${a+b})`; });
+    })();
+
+    // 10) Typing Test
+    registerGame('typing','Typing Test','⌨️','typing');
+    (function typing(){
+      const sec=document.createElement('section'); sec.id='section-typing'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>⌨️ Typing Test</h2><div class="meta">30 seconds. Type as many words as you can.</div>
+      <div id="ty-words" style="margin:8px 0;"></div>
+      <input id="ty-in" class="btn" placeholder="Type here…" style="min-width:260px;" />
+      <div>Time: <strong id="ty-time">30</strong>s • Score: <strong id="ty-score">0</strong></div>
+      <button class="btn" id="ty-start">Start</button></div>`;
+      document.querySelector('main').appendChild(sec);
+      const words='time pass quick fun code game react click speed value neon ghost apple banana cherry orange kiwi mango lemon happy heavy light bright night ring star moon sky cloud'.split(' ');
+      let idx=0, score=0, left=30, timer=null; function newWords(){ const list=[]; for(let i=0;i<30;i++){ list.push(words[Math.floor(Math.random()*words.length)]);} return list; }
+      let list = newWords(); function render(){ sec.querySelector('#ty-words').textContent=list.slice(idx, idx+10).join(' '); }
+  function start(){ idx=0; score=0; left=30; list=newWords(); render(); sec.querySelector('#ty-score').textContent='0'; sec.querySelector('#ty-time').textContent='30'; sec.querySelector('#ty-in').value=''; clearInterval(timer); AudioFX.sfx.start?.(); timer=setInterval(()=>{ left--; sec.querySelector('#ty-time').textContent=String(left); if(left<=0){ clearInterval(timer); AudioFX.sfx.stop?.(); alert('Score: '+score+' WPM≈'+score*2); } },1000); }
+      sec.querySelector('#ty-start').addEventListener('click', start);
+  sec.querySelector('#ty-in').addEventListener('keydown', (e)=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); const v=e.target.value.trim(); if(v===list[idx]){ score++; idx++; AudioFX.sfx.correct?.(); sec.querySelector('#ty-score').textContent=String(score); render(); } else { AudioFX.sfx.wrong?.(); } e.target.value=''; }});
+    })();
+
+    // 11) Aim Trainer
+    registerGame('aim','Aim Trainer','🎯','aim');
+    (function aim(){
+      const sec=document.createElement('section'); sec.id='section-aim'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🎯 Aim Trainer</h2><div class="meta">Click the target. 10 seconds.</div>
+      <button class="btn" id="am-start">Start</button>
+      <div id="am-area" style="position:relative; height:260px; background:#0b1324; border-radius:12px; margin-top:8px;"></div>
+      <div>Score: <strong id="am-score">0</strong></div></div>`;
+      document.querySelector('main').appendChild(sec);
+      const area=sec.querySelector('#am-area'); let running=false, score=0, timer=null;
+      function spawn(){ if(!running) return; const d=32; const b=document.createElement('button'); b.className='btn'; b.style.position='absolute'; b.style.width=d+'px'; b.style.height=d+'px'; b.style.borderRadius='50%'; b.style.padding='0'; b.textContent='';
+        const r=area.getBoundingClientRect(); const x=Math.random()*(r.width-d), y=Math.random()*(r.height-d); b.style.left=x+'px'; b.style.top=y+'px'; b.addEventListener('click',()=>{ score++; sec.querySelector('#am-score').textContent=String(score); b.remove(); spawn(); }); area.innerHTML=''; area.appendChild(b);
+      }
+      sec.querySelector('#am-start').addEventListener('click',()=>{ running=true; score=0; sec.querySelector('#am-score').textContent='0'; clearTimeout(timer); AudioFX.sfx.start?.(); spawn(); timer=setTimeout(()=>{ running=false; area.innerHTML=''; AudioFX.sfx.stop?.(); alert('Score: '+score); }, 10000); });
+    })();
+
+    // 12) Color Guess
+    registerGame('colorguess','Color Guess','🎨','colorguess');
+    (function cg(){
+      const sec=document.createElement('section'); sec.id='section-colorguess'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🎨 Color Guess</h2><div id="cg-box" style="height:80px; border-radius:8px; margin:8px 0;"></div>
+      <div id="cg-opts" style="display:flex; gap:8px; flex-wrap:wrap;"></div><div>Score: <strong id="cg-score">0</strong></div></div>`;
+      document.querySelector('main').appendChild(sec);
+      let score=0; function rand(){ const n=()=>Math.floor(Math.random()*256); return `#${n().toString(16).padStart(2,'0')}${n().toString(16).padStart(2,'0')}${n().toString(16).padStart(2,'0')}`; }
+  function round(){ const correct=rand(); sec.querySelector('#cg-box').style.background=correct; const opts=[correct,rand(),rand()].sort(()=>Math.random()-0.5); const c=sec.querySelector('#cg-opts'); c.innerHTML=''; opts.forEach(o=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=o; b.addEventListener('click',()=>{ if(o===correct){ score++; AudioFX.sfx.correct?.(); sec.querySelector('#cg-score').textContent=String(score);} else { AudioFX.sfx.wrong?.(); } round(); }); c.appendChild(b); }); }
+      round();
+    })();
+
+    // 13) Different Tile
+    registerGame('diff','Different Tile','🟦','diff');
+    (function diff(){
+      const sec=document.createElement('section'); sec.id='section-diff'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🟦 Different Tile</h2><div class="meta">Find the odd color. Gets harder!</div>
+      <div id="df-grid" class="grid" style="grid-template-columns: repeat(3, 40px); gap:6px; margin-top:8px;"></div></div>`;
+      document.querySelector('main').appendChild(sec);
+      let size=3; function base(){ const c=()=>200+Math.floor(Math.random()*30); return [c(),c(),c()]; }
+      function color(a){ return `rgb(${a[0]},${a[1]},${a[2]})`; }
+  function newRound(){ const g=sec.querySelector('#df-grid'); g.style.gridTemplateColumns=`repeat(${size}, 40px)`; const b=base(); const odd=[b[0]+10,b[1]+10,b[2]+10]; const target=Math.floor(Math.random()*size*size); g.innerHTML=''; for(let i=0;i<size*size;i++){ const tile=document.createElement('button'); tile.className='btn'; tile.style.width='40px'; tile.style.height='40px'; tile.style.padding='0'; tile.style.background= i===target?color(odd):color(b); tile.addEventListener('click',()=>{ if(i===target){ size = Math.min(10, size+1); AudioFX.sfx.correct?.(); } else { size = 3; AudioFX.sfx.wrong?.(); } newRound(); }); g.appendChild(tile);} }
+      newRound();
+    })();
+
+    // 14) Speed Math
+    registerGame('speedmath','Speed Math','➗','speedmath');
+    (function sm(){
+      const sec=document.createElement('section'); sec.id='section-speedmath'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>➗ Speed Math</h2><div class="meta">30 seconds. Solve as many as you can.</div>
+      <div id="sm-q" style="margin:6px 0; font-weight:700;"></div>
+      <input id="sm-in" class="btn" style="width:120px;">
+      <button class="btn" id="sm-start">Start</button>
+      <div>Time: <strong id="sm-time">30</strong>s • Score: <strong id="sm-score">0</strong></div></div>`;
+      document.querySelector('main').appendChild(sec);
+      let a=0,b=0,op='+',ans=0,score=0,left=30,timer=null;
+      function gen(){ const ops=['+','-','×']; op=ops[Math.floor(Math.random()*ops.length)]; a=1+Math.floor(Math.random()*20); b=1+Math.floor(Math.random()*20); ans = op==='+'?a+b: op==='-'?a-b: a*b; sec.querySelector('#sm-q').textContent=`${a} ${op} ${b} = ?`; }
+  function start(){ score=0; left=30; sec.querySelector('#sm-score').textContent='0'; sec.querySelector('#sm-time').textContent='30'; gen(); clearInterval(timer); AudioFX.sfx.start?.(); timer=setInterval(()=>{ left--; sec.querySelector('#sm-time').textContent=String(left); if(left<=0){ clearInterval(timer); AudioFX.sfx.stop?.(); alert('Score: '+score); } },1000); }
+      sec.querySelector('#sm-start').addEventListener('click', start);
+  sec.querySelector('#sm-in').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const v=Number(e.target.value); if(v===ans){ score++; AudioFX.sfx.correct?.(); sec.querySelector('#sm-score').textContent=String(score); } else { AudioFX.sfx.wrong?.(); } e.target.value=''; gen(); }});
+    })();
+
+    // 15) Word Scramble
+    registerGame('scramble','Word Scramble','🔤','scramble');
+    (function scr(){
+      const sec=document.createElement('section'); sec.id='section-scramble'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔤 Word Scramble</h2><div id="sc-word" style="font-weight:700; margin:6px 0;"></div>
+      <input id="sc-in" class="btn" placeholder="Your guess"> <button class="btn" id="sc-new">New</button>
+      <div id="sc-out" class="meta"></div></div>`;
+      document.querySelector('main').appendChild(sec);
+      const words=['space','ocean','forest','mountain','pixel','gamer','novel','puzzle','rocket','planet']; let current='';
+      function shuffle(s){ return s.split('').sort(()=>Math.random()-0.5).join(''); }
+      function newW(){ current=words[Math.floor(Math.random()*words.length)]; sec.querySelector('#sc-word').textContent=shuffle(current); sec.querySelector('#sc-in').value=''; sec.querySelector('#sc-out').textContent=''; }
+      sec.querySelector('#sc-new').addEventListener('click', newW); newW();
+  sec.querySelector('#sc-in').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=e.target.value.trim().toLowerCase(); const ok=(v===current); sec.querySelector('#sc-out').textContent = ok?'Correct!':'Nope'; if(ok){ AudioFX.sfx.correct?.(); newW(); } else AudioFX.sfx.wrong?.(); }});
+    })();
+
+    // ================= Additional Mini-Games to reach 50 =================
+    // 16) Stopwatch
+    registerGame('stopwatch','Stopwatch','⏱️','stopwatch');
+    (function sw(){
+      const sec=document.createElement('section'); sec.id='section-stopwatch'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>⏱️ Stopwatch</h2>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <div>Time: <strong id="sw-time">0.00</strong>s</div>
+        <button class="btn" id="sw-start">Start</button>
+        <button class="btn" id="sw-stop">Stop</button>
+        <button class="btn" id="sw-reset">Reset</button>
+      </div></div>`; document.querySelector('main').appendChild(sec);
+      let t0=0, acc=0, timer=null; const fmt=v=>v.toFixed(2);
+      function tick(){ $('#sw-time').textContent = fmt((performance.now()-t0)/1000 + acc); }
+  sec.querySelector('#sw-start').addEventListener('click',()=>{ if(timer) return; t0=performance.now(); AudioFX.sfx.start?.(); timer=setInterval(tick, 50); });
+  sec.querySelector('#sw-stop').addEventListener('click',()=>{ if(!timer) return; acc += (performance.now()-t0)/1000; clearInterval(timer); timer=null; tick(); AudioFX.sfx.stop?.(); });
+      sec.querySelector('#sw-reset').addEventListener('click',()=>{ acc=0; t0=performance.now(); if(!timer) $('#sw-time').textContent='0.00'; });
+    })();
+
+    // 17) Countdown
+    registerGame('countdown','Countdown','⏳','countdown');
+    (function cd(){
+      const sec=document.createElement('section'); sec.id='section-countdown'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>⏳ Countdown</h2>
+      <input id="cd-secs" class="btn" type="number" min="1" value="10" style="width:100px;"/> 
+      <button class="btn" id="cd-start">Start</button>
+      <div style="margin-top:6px;">Left: <strong id="cd-left">10</strong>s</div></div>`; document.querySelector('main').appendChild(sec);
+      let left=10,t=null; function show(){ sec.querySelector('#cd-left').textContent=String(left); }
+  sec.querySelector('#cd-start').addEventListener('click',()=>{ left=Math.max(1, Number(sec.querySelector('#cd-secs').value)||10); show(); clearInterval(t); AudioFX.sfx.start?.(); t=setInterval(()=>{ left--; show(); if(left<=0){ clearInterval(t); AudioFX.sfx.stop?.(); alert('Time!'); } },1000); });
+    })();
+
+    // 18) Minesweeper Mini (5x5)
+    registerGame('mines','Minesweeper Mini','💣','mines');
+    (function mines(){
+      const sec=document.createElement('section'); sec.id='section-mines'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>💣 Minesweeper Mini</h2>
+      <button class="btn" id="ms-new">New</button>
+      <div id="ms-grid" class="grid" style="grid-template-columns: repeat(5, 36px); gap:6px; margin-top:8px;"></div></div>`; document.querySelector('main').appendChild(sec);
+      const G=5, M=5; let bombs=new Set(), shown=new Set(); const grid=sec.querySelector('#ms-grid');
+      function idx(r,c){return r*G+c} function inb(r,c){return r>=0&&r<G&&c>=0&&c<G}
+      function neighbors(r,c){ const ns=[]; for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){ if(dr||dc){ const rr=r+dr,cc=c+dc; if(inb(rr,cc)) ns.push([rr,cc]); } } return ns; }
+      function count(r,c){ return neighbors(r,c).filter(([rr,cc])=>bombs.has(idx(rr,cc))).length }
+      function render(){ grid.innerHTML=''; for(let r=0;r<G;r++)for(let c=0;c<G;c++){ const b=document.createElement('button'); b.className='btn'; b.style.width='36px'; b.style.height='36px'; const k=idx(r,c);
+          if(shown.has(k)){ if(bombs.has(k)){ b.textContent='💣'; b.style.background='#7c2d12'; } else { const n=count(r,c); b.textContent=n?String(n):''; b.style.background='#065f46'; } }
+          b.addEventListener('click',()=>open(r,c)); grid.appendChild(b);} }
+      function flood(r,c){ const k=idx(r,c); if(shown.has(k)||bombs.has(k)) return; shown.add(k); if(count(r,c)===0) neighbors(r,c).forEach(([rr,cc])=>flood(rr,cc)); }
+  function open(r,c){ const k=idx(r,c); if(bombs.has(k)){ shown.add(k); render(); AudioFX.sfx.explosion?.(); alert('Boom!'); } else { flood(r,c); render(); if(shown.size===G*G-bombs.size){ AudioFX.sfx.win?.(); alert('Cleared!'); } } }
+      function newG(){ bombs=new Set(); shown=new Set(); while(bombs.size<M){ bombs.add(Math.floor(Math.random()*G*G)); } render(); }
+      sec.querySelector('#ms-new').addEventListener('click', newG); newG();
+    })();
+
+    // 19) Number Memory
+    registerGame('numemory','Number Memory','🔢','numemory');
+    (function nm(){
+      const sec=document.createElement('section'); sec.id='section-numemory'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔢 Number Memory</h2>
+      <div id="nm-show" style="font-weight:700; font-size:20px; margin:6px 0;"></div>
+      <input id="nm-in" class="btn" placeholder="Enter number"> <button class="btn" id="nm-go">Start</button>
+      <div id="nm-out" class="meta"></div></div>`; document.querySelector('main').appendChild(sec);
+      let cur='', len=3; function rnd(n){ let s=''; for(let i=0;i<n;i++) s+=String(Math.floor(Math.random()*10)); return s; }
+      function show(){ cur=rnd(len); sec.querySelector('#nm-show').textContent=cur; setTimeout(()=>{ sec.querySelector('#nm-show').textContent=''; }, Math.min(2000, 600+len*200)); }
+      sec.querySelector('#nm-go').addEventListener('click',()=>{ len=3; show(); });
+      sec.querySelector('#nm-in').addEventListener('keydown',e=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); if(v===cur){ len++; sec.querySelector('#nm-out').textContent='Correct, length '+len; } else { sec.querySelector('#nm-out').textContent='Wrong. Reset.'; len=3; } e.target.value=''; show(); }});
+    })();
+
+    // 20) 1-Back
+    registerGame('nback','1-Back','1️⃣','nback');
+    (function nb(){
+      const sec=document.createElement('section'); sec.id='section-nback'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>1️⃣ 1-Back</h2><div class="meta">Press Match if same as previous.</div>
+      <div id="nb-cur" style="font-weight:700; font-size:24px; margin:6px 0;">-</div>
+      <button class="btn" id="nb-start">Start (30s)</button>
+      <button class="btn" id="nb-match">Match</button>
+      <div>Score: <strong id="nb-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      const letters='ABCDEFGHJKLMNPQRTUVWXYZ'; let prev='', cur='', score=0, running=false, t=null;
+      function step(){ if(!running) return; prev=cur; cur=letters[Math.floor(Math.random()*letters.length)]; sec.querySelector('#nb-cur').textContent=cur; }
+      sec.querySelector('#nb-start').addEventListener('click',()=>{ running=true; score=0; sec.querySelector('#nb-score').textContent='0'; step(); clearInterval(t); let left=30; const ti=setInterval(()=>{ left--; if(left<=0){ running=false; clearInterval(ti); } },1000); t=setInterval(step, 1000); });
+  sec.querySelector('#nb-match').addEventListener('click',()=>{ if(running && prev && cur===prev){ score++; AudioFX.sfx.correct?.(); sec.querySelector('#nb-score').textContent=String(score);} else { AudioFX.sfx.wrong?.(); } });
+    })();
+
+    // 21) Blackjack (simple)
+    registerGame('blackjack','Blackjack','🃏','blackjack');
+    (function bj(){
+      const sec=document.createElement('section'); sec.id='section-blackjack'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🃏 Blackjack</h2>
+      <div id="bj-out"></div>
+      <button class="btn" id="bj-new">Deal</button>
+      <button class="btn" id="bj-hit">Hit</button>
+      <button class="btn" id="bj-stand">Stand</button></div>`; document.querySelector('main').appendChild(sec);
+      const deck=()=>{ const d=[]; const vals=[2,3,4,5,6,7,8,9,10,10,10,10,11]; for(let i=0;i<4;i++) vals.forEach(v=>d.push(v)); return d.sort(()=>Math.random()-0.5); };
+      let d=[], you=[], dealer=[]; function sum(a){ let s=a.reduce((x,y)=>x+y,0); while(s>21&&a.includes(11)){ a[a.indexOf(11)]=1; s=a.reduce((x,y)=>x+y,0);} return s; }
+      function render(msg=''){ sec.querySelector('#bj-out').textContent=`You ${sum(you)} [${you.join(',')}] | Dealer ${sum(dealer)} [${dealer.join(',')}] ${msg}`; }
+      function deal(){ d=deck(); you=[d.pop(), d.pop()]; dealer=[d.pop(), d.pop()]; render(); }
+  sec.querySelector('#bj-new').addEventListener('click', ()=>{ AudioFX.sfx.start?.(); deal(); });
+  sec.querySelector('#bj-hit').addEventListener('click',()=>{ if(!d.length) return; you.push(d.pop()); const s=sum(you); if(s>21){ render('— Bust!'); AudioFX.sfx.wrong?.(); } else { AudioFX.sfx.click?.(); render(); } });
+  sec.querySelector('#bj-stand').addEventListener('click',()=>{ while(sum(dealer)<17) dealer.push(d.pop()); const ys=sum(you), ds=sum(dealer); const msg = ds>21||ys>ds? '— You win!' : ys===ds? '— Push' : '— Dealer wins'; render(msg); if(msg.includes('win')) AudioFX.sfx.win?.(); else if(msg.includes('Dealer wins')) AudioFX.sfx.wrong?.(); else AudioFX.sfx.click?.(); });
+      deal();
+    })();
+
+    // 22) Higher or Lower
+    registerGame('highlow','Higher or Lower','⬆️','highlow');
+    (function hl(){
+      const sec=document.createElement('section'); sec.id='section-highlow'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>⬆️ Higher or Lower</h2>
+      <div id="hl-cur" style="font-weight:700;">?</div>
+      <button class="btn" id="hl-hi">Higher</button> <button class="btn" id="hl-lo">Lower</button>
+      <div>Score: <strong id="hl-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      let cur= Math.floor(Math.random()*100), score=0; function show(){ sec.querySelector('#hl-cur').textContent=String(cur); }
+  function guess(dir){ const next=Math.floor(Math.random()*100); const ok = dir==='hi'? next>cur : next<cur; if(ok){ score++; AudioFX.sfx.correct?.(); } else { score=0; AudioFX.sfx.wrong?.(); } cur=next; sec.querySelector('#hl-score').textContent=String(score); show(); }
+      sec.querySelector('#hl-hi').addEventListener('click',()=>guess('hi')); sec.querySelector('#hl-lo').addEventListener('click',()=>guess('lo')); show();
+    })();
+
+    // 23) Spinner
+    registerGame('spinner','Spinner','🎡','spinner');
+    (function sp(){
+      const sec=document.createElement('section'); sec.id='section-spinner'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🎡 Spinner</h2>
+      <button class="btn" id="sp-spin">Spin</button>
+      <div id="sp-out" style="margin-top:6px; font-weight:700;">—</div></div>`; document.querySelector('main').appendChild(sec);
+  sec.querySelector('#sp-spin').addEventListener('click',()=>{ AudioFX.sfx.roll?.(); const n=1+Math.floor(Math.random()*10); sec.querySelector('#sp-out').textContent=String(n); });
+    })();
+
+    // 24) Clicker (10s)
+    registerGame('clicker','Clicker (10s)','🍪','clicker');
+    (function ck(){
+      const sec=document.createElement('section'); sec.id='section-clicker'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🍪 Clicker (10s)</h2>
+      <button class="btn" id="ck-start">Start</button>
+      <button class="btn" id="ck-btn" disabled>Click me!</button>
+      <div>Time: <strong id="ck-time">0</strong>s • Score: <strong id="ck-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      let left=0, score=0, t=null; const btn=sec.querySelector('#ck-btn');
+  sec.querySelector('#ck-start').addEventListener('click',()=>{ left=10; score=0; btn.disabled=false; sec.querySelector('#ck-score').textContent='0'; sec.querySelector('#ck-time').textContent=String(left); clearInterval(t); AudioFX.sfx.start?.(); t=setInterval(()=>{ left--; sec.querySelector('#ck-time').textContent=String(left); if(left<=0){ clearInterval(t); btn.disabled=true; AudioFX.sfx.stop?.(); alert('Score: '+score); } },1000); });
+  btn.addEventListener('click',()=>{ score++; AudioFX.sfx.click?.(); sec.querySelector('#ck-score').textContent=String(score); });
+    })();
+
+    // 25) CPS Test (5s)
+    registerGame('cps','Clicks per Second','🖱️','cps');
+    (function cps(){
+      const sec=document.createElement('section'); sec.id='section-cps'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🖱️ Clicks per Second</h2>
+      <button class="btn" id="cps-start">Start</button>
+      <button class="btn" id="cps-btn" disabled>Click!</button>
+      <div>Left: <strong id="cps-left">0</strong>s • Score: <strong id="cps-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      let left=0, score=0, t=null; const btn=sec.querySelector('#cps-btn');
+  sec.querySelector('#cps-start').addEventListener('click',()=>{ left=5; score=0; btn.disabled=false; sec.querySelector('#cps-score').textContent='0'; sec.querySelector('#cps-left').textContent='5'; clearInterval(t); AudioFX.sfx.start?.(); t=setInterval(()=>{ left--; sec.querySelector('#cps-left').textContent=String(left); if(left<=0){ clearInterval(t); btn.disabled=true; AudioFX.sfx.stop?.(); alert('CPS: '+(score/5).toFixed(2)); } },1000); });
+  btn.addEventListener('click',()=>{ score++; AudioFX.sfx.click?.(); sec.querySelector('#cps-score').textContent=String(score); });
+    })();
+
+    // 26) Stop the Bar
+    registerGame('reflex','Stop the Bar','🟥','reflex');
+    (function rx(){
+      const sec=document.createElement('section'); sec.id='section-reflex'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🟥 Stop the Bar</h2>
+      <div id="rx-bar" style="height:16px; background:#1f2937; border-radius:8px; position:relative; overflow:hidden;">
+        <div id="rx-c" style="position:absolute; left:0; top:0; bottom:0; width:14%; background:#60a5fa;"></div>
+        <div style="position:absolute; left:43%; top:0; bottom:0; width:14%; background:#22c55e; opacity:0.4;"></div>
+      </div>
+      <button class="btn" id="rx-go" style="margin-top:8px;">Start/Stop</button>
+      <div>Score: <strong id="rx-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      let dir=1, x=0, t=null, running=false, score=0; const cur=sec.querySelector('#rx-c');
+      function frame(){ x+=dir*2; if(x<=0||x>=86) dir*=-1; cur.style.left=x+'%'; }
+  sec.querySelector('#rx-go').addEventListener('click',()=>{ if(!running){ running=true; AudioFX.sfx.start?.(); t=setInterval(frame, 30); } else { running=false; clearInterval(t); const hit= x>=43 && x<=57; if(hit){ score++; AudioFX.sfx.correct?.(); } else { score=0; AudioFX.sfx.wrong?.(); } sec.querySelector('#rx-score').textContent=String(score); }
+      });
+    })();
+
+    // 27) Balloon Pop
+    registerGame('balloon','Balloon Pop','🎈','balloon');
+    (function bl(){
+      const sec=document.createElement('section'); sec.id='section-balloon'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🎈 Balloon Pop</h2>
+      <button class="btn" id="bl-start">Start (15s)</button>
+      <div id="bl-area" style="position:relative; height:220px; background:#0b1324; border-radius:12px; margin-top:8px;"></div>
+      <div>Score: <strong id="bl-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      const area=sec.querySelector('#bl-area'); let running=false, score=0, timer=null;
+      function spawn(){ if(!running) return; const d=28; const b=document.createElement('button'); b.className='btn'; b.style.position='absolute'; b.style.width=d+'px'; b.style.height=d+'px'; b.style.borderRadius='50%'; b.style.padding='0'; b.textContent='🎈';
+        const r=area.getBoundingClientRect(); const x=Math.random()*(r.width-d), y=Math.random()*(r.height-d); b.style.left=x+'px'; b.style.top=y+'px'; b.addEventListener('click',()=>{ score++; sec.querySelector('#bl-score').textContent=String(score); b.remove(); spawn(); }); area.appendChild(b);
+        setTimeout(()=>{ if(b.parentNode){ b.remove(); spawn(); } }, 900);
+      }
+  sec.querySelector('#bl-start').addEventListener('click',()=>{ running=true; score=0; sec.querySelector('#bl-score').textContent='0'; area.innerHTML=''; AudioFX.sfx.start?.(); spawn(); clearTimeout(timer); timer=setTimeout(()=>{ running=false; area.innerHTML=''; AudioFX.sfx.stop?.(); alert('Score: '+score); }, 15000); });
+    })();
+
+    // 28) Mini Piano
+    registerGame('piano','Mini Piano','🎹','piano');
+    (function pi(){
+      const sec=document.createElement('section'); sec.id='section-piano'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🎹 Mini Piano</h2>
+      <div id="pi-keys" style="display:flex; gap:6px;"></div></div>`; document.querySelector('main').appendChild(sec);
+      const notes=[261.63,293.66,329.63,349.23,392.00,440.00,493.88]; // C4 D4 E4 F4 G4 A4 B4
+      const keys=sec.querySelector('#pi-keys');
+      notes.forEach((f,i)=>{ const b=document.createElement('button'); b.className='btn'; b.textContent='Key '+(i+1); b.addEventListener('click',()=>{
+        AudioFX.ensure?.(); AudioFX.tone?.(f, 0.35, 'sine', 0.16);
+      }); keys.appendChild(b); });
+    })();
+
+    // 29) Color Tap (Stroop)
+    registerGame('colortap','Color Tap','🟥','colortap');
+    (function ct(){
+      const sec=document.createElement('section'); sec.id='section-colortap'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🟥 Color Tap</h2><div class="meta">Does the word match its color? Yes/No.</div>
+      <div id="ct-word" style="font-weight:700; font-size:24px; margin:6px 0;">—</div>
+      <button class="btn" id="ct-yes">Yes</button> <button class="btn" id="ct-no">No</button>
+      <div>Score: <strong id="ct-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      const colors=[['RED','#ef4444'],['GREEN','#22c55e'],['BLUE','#3b82f6'],['YELLOW','#f59e0b']]; let score=0, cur=null;
+      function round(){ const w=colors[Math.floor(Math.random()*colors.length)]; const c=colors[Math.floor(Math.random()*colors.length)]; cur=[w[0], c[0]]; const el=sec.querySelector('#ct-word'); el.textContent=w[0]; el.style.color=c[1]; }
+  function pick(ans){ const ok=(cur[0]===cur[1]); if((ans==='yes'&&ok)||(ans==='no'&&!ok)) { score++; AudioFX.sfx.correct?.(); } else { score=0; AudioFX.sfx.wrong?.(); } sec.querySelector('#ct-score').textContent=String(score); round(); }
+      sec.querySelector('#ct-yes').addEventListener('click',()=>pick('yes')); sec.querySelector('#ct-no').addEventListener('click',()=>pick('no')); round();
+    })();
+
+    // 30) Even or Odd
+    registerGame('evenodd','Even or Odd','➗','evenodd');
+    (function eo(){
+      const sec=document.createElement('section'); sec.id='section-evenodd'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>➗ Even or Odd</h2>
+      <div id="eo-num" style="font-weight:700;">0</div>
+      <button class="btn" id="eo-even">Even</button> <button class="btn" id="eo-odd">Odd</button>
+      <div>Score: <strong id="eo-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      let n=0, score=0; function next(){ n=Math.floor(Math.random()*100); sec.querySelector('#eo-num').textContent=String(n); }
+  function g(t){ const ok = (n%2===0 && t==='even')||(n%2===1 && t==='odd'); if(ok){ score++; AudioFX.sfx.correct?.(); } else { score=0; AudioFX.sfx.wrong?.(); } sec.querySelector('#eo-score').textContent=String(score); next(); }
+      sec.querySelector('#eo-even').addEventListener('click',()=>g('even')); sec.querySelector('#eo-odd').addEventListener('click',()=>g('odd')); next();
+    })();
+
+    // 31) Prime or Not
+    registerGame('prime','Prime or Not','🧠','prime');
+    (function pr(){
+      const sec=document.createElement('section'); sec.id='section-prime'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🧠 Prime or Not</h2>
+      <div id="pr-num" style="font-weight:700;">0</div>
+      <button class="btn" id="pr-yes">Prime</button> <button class="btn" id="pr-no">Composite</button>
+      <div>Score: <strong id="pr-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      let n=0, score=0; function isPrime(x){ if(x<2) return false; for(let i=2;i*i<=x;i++) if(x%i===0) return false; return true; }
+      function next(){ n=2+Math.floor(Math.random()*97); sec.querySelector('#pr-num').textContent=String(n); }
+  function g(t){ const ok = (isPrime(n)&&t==='y')||(!isPrime(n)&&t==='n'); if(ok){ score++; AudioFX.sfx.correct?.(); } else { score=0; AudioFX.sfx.wrong?.(); } sec.querySelector('#pr-score').textContent=String(score); next(); }
+      sec.querySelector('#pr-yes').addEventListener('click',()=>g('y')); sec.querySelector('#pr-no').addEventListener('click',()=>g('n')); next();
+    })();
+
+    // 32) Anagram Hunt
+    registerGame('anagram','Anagram Hunt','🔤','anagram');
+    (function ana(){
+      const sec=document.createElement('section'); sec.id='section-anagram'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔤 Anagram Hunt</h2>
+      <div id="ana-base" style="font-weight:700; margin:6px 0;"></div>
+      <input id="ana-in" class="btn" placeholder="Your anagram"> <button class="btn" id="ana-check">Check</button>
+      <div id="ana-out" class="meta"></div></div>`; document.querySelector('main').appendChild(sec);
+      const words=['listen','earth','finder','alert','angle','stressed']; const anas={'listen':['silent','enlist'],'earth':['heart','hater'],'finder':['friend'],'alert':['later','ratel'],'angle':['glean','angel'],'stressed':['desserts']};
+      let base=''; function newW(){ base=words[Math.floor(Math.random()*words.length)]; sec.querySelector('#ana-base').textContent=base; sec.querySelector('#ana-out').textContent=''; sec.querySelector('#ana-in').value=''; }
+  sec.querySelector('#ana-check').addEventListener('click',()=>{ const v=sec.querySelector('#ana-in').value.trim().toLowerCase(); if(anas[base]?.includes(v)){ sec.querySelector('#ana-out').textContent='Correct!'; AudioFX.sfx.correct?.(); } else { sec.querySelector('#ana-out').textContent='Nope'; AudioFX.sfx.wrong?.(); } });
+      newW();
+    })();
+
+    // 33) Pattern Memory
+    registerGame('pattern','Pattern Memory','🔁','pattern');
+    (function pat(){
+      const sec=document.createElement('section'); sec.id='section-pattern'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔁 Pattern Memory</h2>
+      <div id="pt-grid" class="grid" style="grid-template-columns: repeat(3, 50px); gap:6px;"></div>
+      <div>Score: <strong id="pt-score">0</strong></div>
+      <button class="btn" id="pt-new">New</button></div>`; document.querySelector('main').appendChild(sec);
+      const g=sec.querySelector('#pt-grid'); let seq=[], step=0, score=0, showing=false;
+  function flash(i){ const b=g.children[i]; const old=b.style.filter; b.style.filter='brightness(1.7)'; AudioFX.sfx.tick?.(); setTimeout(()=>b.style.filter=old, 250); }
+      function play(){ showing=true; let i=0; const t=setInterval(()=>{ flash(seq[i]); i++; if(i>=seq.length){ clearInterval(t); showing=false; } }, 450); }
+      function next(){ seq.push(Math.floor(Math.random()*9)); play(); }
+  function build(){ g.innerHTML=''; for(let i=0;i<9;i++){ const b=document.createElement('button'); b.className='btn'; b.style.height='50px'; b.addEventListener('click',()=>{ if(showing) return; if(i===seq[step]){ step++; if(step===seq.length){ score++; AudioFX.sfx.correct?.(); sec.querySelector('#pt-score').textContent=String(score); step=0; next(); } } else { AudioFX.sfx.wrong?.(); alert('Oops! Score: '+score); score=0; seq=[]; step=0; next(); } }); g.appendChild(b);} }
+      sec.querySelector('#pt-new').addEventListener('click',()=>{ seq=[]; step=0; score=0; sec.querySelector('#pt-score').textContent='0'; next(); }); build(); next();
+    })();
+
+    // 34) Find Numbers 1..25
+    registerGame('findnum','Find 1..25','🔢','findnum');
+    (function fn(){
+      const sec=document.createElement('section'); sec.id='section-findnum'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔢 Find 1..25</h2>
+      <div id="fn-grid" class="grid" style="grid-template-columns: repeat(5, 44px); gap:6px;"></div>
+      <div>Next: <strong id="fn-next">1</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      const g=sec.querySelector('#fn-grid'); let nums=[]; let next=1;
+  function build(){ nums=[...Array(25)].map((_,i)=>i+1).sort(()=>Math.random()-0.5); next=1; sec.querySelector('#fn-next').textContent='1'; g.innerHTML=''; nums.forEach(n=>{ const b=document.createElement('button'); b.className='btn'; b.style.height='44px'; b.textContent=String(n); b.addEventListener('click',()=>{ if(n===next){ b.disabled=true; next++; AudioFX.sfx.correct?.(); sec.querySelector('#fn-next').textContent=String(next); if(next>25){ AudioFX.sfx.win?.(); alert('Done!'); } } else { AudioFX.sfx.wrong?.(); } }); g.appendChild(b); }); }
+      build();
+    })();
+
+    // 35) Hot or Cold (Number Guess)
+    registerGame('hotcold','Hot or Cold','🔥','hotcold');
+    (function hc(){
+      const sec=document.createElement('section'); sec.id='section-hotcold'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔥 Hot or Cold</h2>
+      <input id="hc-in" class="btn" type="number" min="1" max="100" style="width:100px;"/> <button class="btn" id="hc-go">Guess</button>
+      <div id="hc-out" style="margin-top:6px;"></div></div>`; document.querySelector('main').appendChild(sec);
+      let target=1+Math.floor(Math.random()*100), lastDiff=Infinity; function diff(x){ return Math.abs(x-target) }
+  sec.querySelector('#hc-go').addEventListener('click',()=>{ const v=Number(sec.querySelector('#hc-in').value); if(!v) return; const d=diff(v); const txt = d===0? 'Correct!' : d<lastDiff? 'Hotter' : 'Colder'; sec.querySelector('#hc-out').textContent=txt; if(d===0){ AudioFX.sfx.win?.(); target=1+Math.floor(Math.random()*100); lastDiff=Infinity; } else AudioFX.sfx.tick?.(); lastDiff=d; });
+    })();
+
+    // 36) Key Reflex
+    registerGame('keyreflex','Key Reflex','⌨️','keyreflex');
+    (function kr(){
+      const sec=document.createElement('section'); sec.id='section-keyreflex'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>⌨️ Key Reflex</h2><div class="meta">Press the displayed key quickly.</div>
+      <div id="kr-key" style="font-weight:700; font-size:24px;">-</div>
+      <button class="btn" id="kr-start">Start (10 tries)</button>
+      <div>Avg ms: <strong id="kr-avg">—</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      const keys='ASDFJKL;'.split(''); let waitKey=null, t0=0, times=[]; function next(){ waitKey=keys[Math.floor(Math.random()*keys.length)]; sec.querySelector('#kr-key').textContent=waitKey; t0=performance.now(); }
+  sec.querySelector('#kr-start').addEventListener('click',()=>{ times=[]; AudioFX.sfx.start?.(); next(); });
+  window.addEventListener('keydown',e=>{ if(waitKey && e.key.toUpperCase()===waitKey){ const dt=performance.now()-t0; AudioFX.sfx.ok?.(); times.push(dt); waitKey=null; if(times.length>=10){ const avg=times.reduce((a,b)=>a+b,0)/times.length; sec.querySelector('#kr-avg').textContent=Math.round(avg)+' ms'; } else { setTimeout(next, 400); } }});
+    })();
+
+    // 37) A→Z Typer
+    registerGame('alphabet','A→Z Typer','🔡','alphabet');
+    (function az(){
+      const sec=document.createElement('section'); sec.id='section-alphabet'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔡 A→Z Typer</h2><div class="meta">Type letters from A to Z.</div>
+      <div>Next: <strong id="az-next">A</strong></div>
+      <input id="az-in" class="btn" placeholder="Type here" style="min-width:200px;"/></div>`; document.querySelector('main').appendChild(sec);
+  let code=65; sec.querySelector('#az-in').addEventListener('keydown',e=>{ const ch=e.key.toUpperCase(); if(ch.charCodeAt(0)===code){ code++; AudioFX.sfx.ok?.(); sec.querySelector('#az-next').textContent=String.fromCharCode(code); if(code>90){ AudioFX.sfx.win?.(); alert('Done!'); code=65; sec.querySelector('#az-next').textContent='A'; } } else { AudioFX.sfx.wrong?.(); } });
+    })();
+
+    // 38) Math Quiz
+    registerGame('mathquiz','Math Quiz','➕','mathquiz');
+    (function mq(){
+      const sec=document.createElement('section'); sec.id='section-mathquiz'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>➕ Math Quiz</h2>
+      <div id="mq-q" style="font-weight:700; margin:6px 0;"></div>
+      <input id="mq-in" class="btn" style="width:120px;"> <button class="btn" id="mq-next">Next</button>
+      <div>Score: <strong id="mq-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      let a=0,b=0,op='+',ans=0,score=0; function gen(){ const ops=['+','-','×','÷']; op=ops[Math.floor(Math.random()*ops.length)]; a=1+Math.floor(Math.random()*20); b=1+Math.floor(Math.random()*20); ans = op==='+'?a+b: op==='-'?a-b: op==='×'?a*b: Math.floor(a/b); sec.querySelector('#mq-q').textContent=`${a} ${op} ${b} = ?`; }
+  gen(); sec.querySelector('#mq-next').addEventListener('click',()=>{ const v=Number(sec.querySelector('#mq-in').value); if(v===ans){ score++; AudioFX.sfx.correct?.(); } else { score=0; AudioFX.sfx.wrong?.(); } sec.querySelector('#mq-score').textContent=String(score); sec.querySelector('#mq-in').value=''; gen(); });
+    })();
+
+    // 39) Capitals Quiz
+    registerGame('capitals','Capitals Quiz','🌍','capitals');
+    (function cap(){
+      const sec=document.createElement('section'); sec.id='section-capitals'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🌍 Capitals Quiz</h2>
+      <div id="cap-q" style="margin:6px 0;"></div>
+      <div id="cap-opts" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+      <div>Score: <strong id="cap-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      const data=[['India','New Delhi'],['Japan','Tokyo'],['France','Paris'],['Italy','Rome'],['USA','Washington'],['UK','London']]; let score=0;
+      function round(){ const [c,cap]=data[Math.floor(Math.random()*data.length)]; const wrong=data.filter(x=>x[1]!==cap).sort(()=>Math.random()-0.5).slice(0,3).map(x=>x[1]); const opts=[cap,...wrong].sort(()=>Math.random()-0.5);
+        sec.querySelector('#cap-q').textContent='Capital of '+c+'?'; const box=sec.querySelector('#cap-opts'); box.innerHTML=''; opts.forEach(o=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=o; b.addEventListener('click',()=>{ if(o===cap) score++; else score=0; sec.querySelector('#cap-score').textContent=String(score); round(); }); box.appendChild(b); }); }
+      // Enhance with SFX on click
+      const oldRound = round; round = function(){ const [c,cap]=data[Math.floor(Math.random()*data.length)]; const wrong=data.filter(x=>x[1]!==cap).sort(()=>Math.random()-0.5).slice(0,3).map(x=>x[1]); const opts=[cap,...wrong].sort(()=>Math.random()-0.5);
+        sec.querySelector('#cap-q').textContent='Capital of '+c+'?'; const box=sec.querySelector('#cap-opts'); box.innerHTML=''; opts.forEach(o=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=o; b.addEventListener('click',()=>{ if(o===cap){ score++; AudioFX.sfx.correct?.(); } else { score=0; AudioFX.sfx.wrong?.(); } sec.querySelector('#cap-score').textContent=String(score); round(); }); box.appendChild(b); }); };
+      round();
+      round();
+    })();
+
+    // 40) Connect Four (simple)
+    registerGame('connect4','Connect Four','🟨','connect4');
+    (function c4(){
+      const sec=document.createElement('section'); sec.id='section-connect4'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🟨 Connect Four</h2>
+      <div id="c4-grid" class="grid" style="grid-template-columns: repeat(7, 36px); gap:6px;"></div>
+      <div>Turn: <strong id="c4-turn">R</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      const W=7,H=6; let g=[...Array(H)].map(()=>Array(W).fill('')); let turn='R'; const grid=sec.querySelector('#c4-grid');
+      function render(){ grid.innerHTML=''; for(let r=0;r<H;r++)for(let c=0;c<W;c++){ const b=document.createElement('button'); b.className='btn'; b.style.width='36px'; b.style.height='36px'; b.textContent=g[r][c]; b.addEventListener('click',()=>drop(c)); grid.appendChild(b);} sec.querySelector('#c4-turn').textContent=turn; }
+  function drop(c){ for(let r=H-1;r>=0;r--){ if(!g[r][c]){ g[r][c]=turn; AudioFX.sfx.slide?.(); if(win(r,c)){ AudioFX.sfx.win?.(); alert(turn+' wins!'); g=[...Array(H)].map(()=>Array(W).fill('')); } turn=turn==='R'?'Y':'R'; render(); return; } } }
+      function win(r,c){ const d=[[1,0],[0,1],[1,1],[1,-1]]; return d.some(([dr,dc])=>{ let cnt=1; for(let s=1;s<4;s++){ const rr=r+dr*s,cc=c+dc*s; if(rr<0||rr>=H||cc<0||cc>=W||g[rr][cc]!==g[r][c]) break; cnt++; } for(let s=1;s<4;s++){ const rr=r-dr*s,cc=c-dc*s; if(rr<0||rr>=H||cc<0||cc>=W||g[rr][cc]!==g[r][c]) break; cnt++; } return cnt>=4; }); }
+      render();
+    })();
+
+    // 41) Snake (tiny)
+    registerGame('snake','Snake','🐍','snake');
+    (function sn(){
+      const sec=document.createElement('section'); sec.id='section-snake'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🐍 Snake</h2>
+      <canvas id="sn-c" width="240" height="240" style="background:#0b1324; border-radius:8px;"></canvas>
+      <div class="meta">Use arrow keys.</div></div>`; document.querySelector('main').appendChild(sec);
+      const cv=sec.querySelector('#sn-c'), ctx=cv.getContext('2d'); const N=12,S=cv.width/N; let snake=[[5,5]], dir=[1,0], food=[8,8];
+      function draw(){ ctx.fillStyle='#0b1324'; ctx.fillRect(0,0,cv.width,cv.height); ctx.fillStyle='#22c55e'; snake.forEach(([x,y])=>ctx.fillRect(x*S,y*S,S-2,S-2)); ctx.fillStyle='#f59e0b'; ctx.fillRect(food[0]*S,food[1]*S,S-2,S-2); }
+      function step(){ const h=[(snake[0][0]+dir[0]+N)%N,(snake[0][1]+dir[1]+N)%N]; if(snake.some(p=>p[0]===h[0]&&p[1]===h[1])){ AudioFX.sfx.explosion?.(); alert('Crashed!'); snake=[[5,5]]; }
+        snake.unshift(h); if(h[0]===food[0]&&h[1]===food[1]){ food=[Math.floor(Math.random()*N),Math.floor(Math.random()*N)]; } else snake.pop(); draw(); }
+      window.addEventListener('keydown',e=>{ const k=e.key; if(k==='ArrowUp'&&dir[1]!==1) dir=[0,-1]; if(k==='ArrowDown'&&dir[1]!==-1) dir=[0,1]; if(k==='ArrowLeft'&&dir[0]!==1) dir=[-1,0]; if(k==='ArrowRight'&&dir[0]!==-1) dir=[1,0]; }); setInterval(step, 220); draw();
+    })();
+
+    // 42) 2048 Row (1×8)
+    registerGame('row2048','2048 Row','🔢','row2048');
+    (function r2048(){
+      const sec=document.createElement('section'); sec.id='section-row2048'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🔢 2048 Row</h2>
+      <div id="r2-cells" class="grid" style="grid-template-columns: repeat(8, 48px); gap:6px;"></div>
+      <div class="meta">Use ← → keys.</div></div>`; document.querySelector('main').appendChild(sec);
+      let a=[0,0,0,0,0,0,0,0]; function spawn(){ const z=a.map((v,i)=>[v,i]).filter(x=>x[0]===0); if(z.length){ const i=z[Math.floor(Math.random()*z.length)][1]; a[i]=Math.random()<0.9?2:4; } }
+      function render(){ const g=sec.querySelector('#r2-cells'); g.innerHTML=''; a.forEach(v=>{ const b=document.createElement('div'); b.className='panel'; b.style.padding='10px'; b.style.textAlign='center'; b.textContent=v?String(v):''; g.appendChild(b); }); }
+      function slide(dir){ const b=a.filter(x=>x); if(dir==='L'){ for(let i=0;i<b.length-1;i++) if(b[i]===b[i+1]){ b[i]*=2; AudioFX.sfx.ok?.(); b.splice(i+1,1);} a=[...b, ...Array(8-b.length).fill(0)]; }
+        else { for(let i=b.length-1;i>0;i--) if(b[i]===b[i-1]){ b[i]*=2; b.splice(i-1,1);} a=[...Array(8-b.length).fill(0), ...b]; } spawn(); render(); }
+      window.addEventListener('keydown',e=>{ if(e.key==='ArrowLeft') slide('L'); if(e.key==='ArrowRight') slide('R'); }); spawn(); spawn(); render();
+    })();
+
+    // 43) Sudoku Mini (4×4)
+    registerGame('sudoku','Sudoku Mini','🧮','sudoku');
+    (function su(){
+      const sec=document.createElement('section'); sec.id='section-sudoku'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>🧮 Sudoku Mini (4×4)</h2>
+      <div id="su-grid" class="grid" style="grid-template-columns: repeat(4, 40px); gap:6px;"></div>
+      <button class="btn" id="su-check">Check</button></div>`; document.querySelector('main').appendChild(sec);
+      // Fixed puzzle
+      const given=[[0,2,0,4],[0,0,0,0],[0,0,0,0],[3,0,2,0]]; const sol=[[1,2,3,4],[2,3,4,1],[4,1,0,3],[3,4,2,1]]; // simple target, allow 0 as any
+      const g=sec.querySelector('#su-grid'); const inputs=[]; for(let r=0;r<4;r++)for(let c=0;c<4;c++){ const v=given[r][c]; const el=document.createElement('input'); el.className='btn'; el.style.width='40px'; el.style.height='40px'; el.maxLength=1; el.value=v?String(v):''; if(v) el.disabled=true; g.appendChild(el); inputs.push(el); }
+      sec.querySelector('#su-check').addEventListener('click',()=>{ let ok=true, k=0; for(let r=0;r<4;r++)for(let c=0;c<4;c++,k++){ const v=inputs[k].value?Number(inputs[k].value):0; if(sol[r][c]!==0 && v!==sol[r][c]) ok=false; }
+        if(ok){ AudioFX.sfx.win?.(); alert('Looks good!'); } else { AudioFX.sfx.wrong?.(); alert('Some entries are wrong'); } });
+    })();
+
+    // 44) Arrow Keys Trainer
+    registerGame('arrows','Arrow Keys','↔️','arrows');
+    (function arr(){
+      const sec=document.createElement('section'); sec.id='section-arrows'; sec.className='section hidden';
+      sec.innerHTML=`<div class="panel"><h2>↔️ Arrow Keys</h2><div class="meta">Press the shown arrow key quickly.</div>
+      <div id="ar-show" style="font-size:28px; font-weight:700; margin:6px 0;">—</div>
+      <button class="btn" id="ar-start">Start (10)</button>
+      <div>Score: <strong id="ar-score">0</strong></div></div>`; document.querySelector('main').appendChild(sec);
+      const mapping=[["↑","ArrowUp"],["↓","ArrowDown"],["←","ArrowLeft"],["→","ArrowRight"]]; let need=null, left=0, score=0;
+      function next(){ const p=mapping[Math.floor(Math.random()*mapping.length)]; need=p[1]; sec.querySelector('#ar-show').textContent=p[0]; }
+      sec.querySelector('#ar-start').addEventListener('click',()=>{ left=10; score=0; sec.querySelector('#ar-score').textContent='0'; next(); });
+  window.addEventListener('keydown',e=>{ if(!need) return; if(e.key===need){ score++; AudioFX.sfx.ok?.(); sec.querySelector('#ar-score').textContent=String(score); left--; if(left<=0){ need=null; AudioFX.sfx.win?.(); sec.querySelector('#ar-show').textContent='Done!'; } else next(); } else { AudioFX.sfx.wrong?.(); } });
+    })();
+
+  // Rebuild Home grid after registrations and build recent row
+  buildGameGrid();
+  if (typeof buildRecentRow === 'function') buildRecentRow();
+
+  </script>
+</body>
+</html>
