@@ -325,7 +325,7 @@
     <div class="container titlebar" role="banner">
   <h1 aria-label="FunityArcade title">FunityArcade</h1>
       <div class="controls" role="toolbar" aria-label="Global controls">
-  <button class="btn accent" id="randomBtn" title="Surprise me" aria-label="Pick a random game">🎲 Random</button>
+  <button class="btn accent" id="randomBtn" title="Surprise me" aria-label="Pick a random game">🎲 Surprise</button>
   <button class="btn" id="darkToggle" title="Toggle light/dark mode" aria-pressed="false">🌙 Dark</button>
   <button class="btn" id="effectsToggle" title="Toggle animations and effects" aria-pressed="true">✨ Effects</button>
   <button class="btn" id="soundToggle" title="Toggle sound effects" aria-pressed="true" aria-label="Toggle sound">🔊</button>
@@ -351,8 +351,11 @@
       <div class="panel">
         <h2>🎮 Mini Arcade Console</h2>
         <div class="meta">Search and pick a game. New mini-games added!</div>
-        <div style="display:flex; gap:10px; margin:10px 0; flex-wrap:wrap; align-items:center;">
-          <input id="game-search" class="btn" placeholder="Search games…" style="flex:1; min-width:220px; text-align:left;" />
+        <div style="display:flex; gap:10px; margin:10px 0; flex-wrap:wrap; align-items:center; position:relative;">
+          <input id="game-search" class="btn" placeholder="Search games…" style="flex:1; min-width:220px; text-align:left;" autocomplete="off" />
+          <div id="search-suggest" style="position:absolute; top:100%; left:0; right:0; z-index:10; display:none;">
+            <div id="search-suggest-inner" style="background: var(--panel); border:1px solid var(--panel-border); border-top:none; border-radius:0 0 12px 12px; box-shadow: 0 10px 28px var(--shadow), var(--glow-2); overflow:hidden;"></div>
+          </div>
           <select id="game-filter" class="btn" title="Filter category">
             <option value="All">All</option>
             <option>Favorites</option>
@@ -366,18 +369,6 @@
             <option>Trivia</option>
             <option>Guess</option>
           </select>
-          <button class="btn" id="surprise">🎲 Surprise</button>
-        </div>
-        <div id="recent-wrap" style="display:none; margin:8px 0 6px;">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-            <div class="meta">Recently played</div>
-            <button class="btn" id="recent-clear" title="Clear recently played" style="padding:4px 8px;">Clear</button>
-          </div>
-    <div id="recent-row" class="row-grid"></div>
-        </div>
-        <div id="quick-wrap" style="display:none; margin:8px 0 6px;">
-          <div class="meta" style="margin-bottom:6px;">Quick play</div>
-          <div id="quick-row" class="row-grid"></div>
         </div>
         <div id="game-grid" class="grid" style="grid-template-columns: repeat(4, 1fr);"></div>
       </div>
@@ -488,7 +479,7 @@
         <p>This is a tiny offline mini-arcade to pass time when you're bored. Everything is in this one HTML file — no internet required.</p>
         <ul>
           <li>Use the tabs above to switch games.</li>
-          <li>Hit 🎲 Random for a surprise pick.</li>
+          <li>Hit 🎲 Surprise for a surprise pick.</li>
           <li>Toggle 🌙 Dark to switch themes. Your choice is remembered.</li>
         </ul>
         <p class="meta">Built with plain HTML, CSS, and a dash of JavaScript. Enjoy!</p>
@@ -851,6 +842,67 @@
     }
     document.getElementById('game-search')?.addEventListener('input', buildGameGrid);
     document.getElementById('game-filter')?.addEventListener('change', buildGameGrid);
+    // Live search suggestions
+    (function setupLiveSearch(){
+      const input = document.getElementById('game-search'); if(!input) return;
+      const wrap = document.getElementById('search-suggest');
+      const inner = document.getElementById('search-suggest-inner');
+      let idx = -1; // keyboard selection index
+      function hide(){ wrap.style.display='none'; idx=-1; }
+      function show(){ wrap.style.display='block'; }
+      function render(list){
+        inner.innerHTML = '';
+        list.forEach((g,i)=>{
+          const item = document.createElement('div');
+          item.setAttribute('role','button');
+          item.style.display='flex'; item.style.alignItems='center'; item.style.gap='8px';
+          item.style.padding='10px 12px'; item.style.cursor='pointer';
+          item.style.borderTop = i? '1px solid var(--panel-border)' : 'none';
+          item.innerHTML = `<span style="font-size:18px;">${g.emoji}</span><span style="flex:1 1 auto;">${g.title}</span><span class="meta" style="opacity:0.7;">${(CAT[g.id]||'Misc')}</span>`;
+          item.addEventListener('mouseenter',()=>{ idx=i; highlight(); });
+          item.addEventListener('mouseleave',()=>{ idx=-1; highlight(); });
+          item.addEventListener('click',()=>{ hide(); input.blur(); AudioFX.sfx.select?.(); showSection(g.sectionId); });
+          inner.appendChild(item);
+        });
+        if(!list.length) { hide(); return; }
+        show(); highlight();
+      }
+      function highlight(){
+        [...inner.children].forEach((el,i)=>{
+          el.style.background = i===idx? 'rgba(255,255,255,0.06)' : 'transparent';
+        });
+      }
+      function update(){
+        const q = input.value.trim().toLowerCase();
+        if(!q){ hide(); buildGameGrid(); return; }
+        const list = GAME_REG
+          .map(g=>({...g, id:g.sectionId}))
+          .filter(g=> g.title.toLowerCase().includes(q) || (CAT[g.id]||'').toLowerCase().includes(q));
+        render(list.slice(0,8));
+      }
+      input.addEventListener('input', ()=>{ idx=-1; update(); });
+      input.addEventListener('focus', ()=>{ update(); });
+      input.addEventListener('blur', ()=>{ setTimeout(hide, 120); });
+      input.addEventListener('keydown', (e)=>{
+        const count = inner.children.length; if(!count) return;
+        if(e.key==='ArrowDown'){ e.preventDefault(); idx = (idx+1)%count; highlight(); }
+        else if(e.key==='ArrowUp'){ e.preventDefault(); idx = (idx-1+count)%count; highlight(); }
+        else if(e.key==='Enter'){
+          e.preventDefault();
+          if(idx>=0 && idx<count){ inner.children[idx].click(); }
+          else {
+            // If no item highlighted, pick first match if any
+            const q = input.value.trim().toLowerCase();
+            const first = GAME_REG.find(g=> g.title.toLowerCase().includes(q));
+            if(first){ hide(); input.blur(); showSection(first.sectionId); }
+          }
+        } else if(e.key==='Escape'){ hide(); }
+      });
+      // Dismiss on outside click
+      document.addEventListener('click',(ev)=>{
+        if(!wrap.contains(ev.target) && ev.target!==input){ hide(); }
+      });
+    })();
     document.getElementById('surprise')?.addEventListener('click', ()=>{
       const pool = GAME_REG.map(g=>g.sectionId); const pick = pool[Math.floor(Math.random()*pool.length)] || 'memory'; showSection(pick);
     });
