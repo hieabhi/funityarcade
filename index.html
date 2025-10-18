@@ -84,6 +84,7 @@
       appearance: none; border: 1px solid var(--panel-border); color: var(--fg);
       background: radial-gradient(120% 120% at 50% 0%, var(--panel), var(--panel-2));
       padding: 8px 12px; border-radius: 12px; cursor: pointer; font-weight: 700;
+      line-height: 1.2; /* avoid text clipping on mobile */
       transition: transform 0.1s ease, box-shadow 0.25s ease, background 0.3s ease, border-color 0.3s ease;
       box-shadow: 0 2px 8px var(--shadow);
     }
@@ -105,7 +106,7 @@
       transform: scaleX(0); transform-origin: left; transition: transform 240ms ease; }
     nav .tab:hover::before { transform: scaleX(1); }
 
-    main { padding: 12px 16px 40px; }
+  main { padding: 12px 16px 40px; }
     .grid {
       display: grid; gap: 16px;
       grid-template-columns: repeat(12, 1fr);
@@ -229,6 +230,10 @@
       /* Reaction: stack panels */
       #section-reaction .grid { grid-template-columns: 1fr !important; }
       #section-reaction .grid > .panel { grid-column: 1 / -1 !important; }
+      /* Tabs: use flex row with horizontal scroll; ensure full button height */
+      nav { display: flex !important; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 8px; padding: 12px 0; }
+      nav .tab { flex: 0 0 auto; display: inline-flex; align-items: center; }
+      .btn { min-height: 40px; }
     }
     @media (max-width: 520px) {
       /* Home grid: collapse to 1 column on very small devices */
@@ -238,6 +243,8 @@
       /* 2048 Row: make cells flex to width */
       #r2-cells { grid-template-columns: repeat(8, 1fr) !important; }
       #r2-cells > .panel { padding: 6px !important; }
+      /* Slightly tighter button text at very small widths */
+      .btn { padding: 10px 12px; font-size: 14px; }
     }
 
     /* Futuristic animations */
@@ -282,6 +289,17 @@
     }
     /* Effects toggle to disable animations */
     .no-anim *, .no-anim *::before, .no-anim *::after { animation: none !important; transition: none !important; }
+    /* Immersive game mode (mobile) */
+    .immersive header, .immersive footer, .immersive .titlebar + .container { display: none !important; }
+    .immersive main { padding: 0; }
+    .immersive .section { max-width: none; margin: 0; }
+    .immersive .section .panel { border-radius: 0; min-height: 100svh; /* small viewport units for mobile */
+      padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    }
+
+    /* Floating Home button in immersive mode */
+    #home-fab { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: none; }
+    .immersive #home-fab { display: inline-flex; }
   </style>
 </head>
 <body>
@@ -465,6 +483,9 @@
     <div>Made for fun. No tracking. No network calls. Works offline.</div>
   </footer>
 
+  <!-- Floating Home Button (shown in immersive mode) -->
+  <button id="home-fab" class="btn" title="Home" aria-label="Go Home">🏠 Home</button>
+
   <!-- Reusable Help Modal -->
   <div id="help-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="modal-dialog">
@@ -590,6 +611,15 @@
       // aria for tabs
       $$('.tab').forEach(btn => btn.classList.toggle('primary', btn.dataset.section === key));
       location.hash = key;
+      // Immersive mode on small screens for games (hide header/footer, fill screen)
+      const isGame = key && key!=='home' && key!=='help';
+      const small = window.matchMedia('(max-width: 760px)').matches;
+      if (isGame && small) {
+        document.body.classList.add('immersive');
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      } else {
+        document.body.classList.remove('immersive');
+      }
       // Ambient music on Home only; start jingle on game entry
       if ((localStorage.getItem('funity-music')||'off')==='on'){
         if (key==='home') AudioFX.startAmbient(); else AudioFX.stopAmbient();
@@ -610,6 +640,8 @@
     }
     $$('.tab').forEach(btn => btn.addEventListener('click', () => showSection(btn.dataset.section)));
     $('#gotoHelp').addEventListener('click', (e) => { e.preventDefault(); showSection('help'); });
+  // Immersive exit via floating Home button
+  document.getElementById('home-fab')?.addEventListener('click', ()=> showSection('home'));
     $('#randomBtn').addEventListener('click', () => {
       AudioFX.sfx.select?.();
       const pool = getFilteredIds();
