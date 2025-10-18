@@ -79,7 +79,8 @@
       -webkit-background-clip: text; background-clip: text; color: transparent;
       text-shadow: 0 0 20px rgba(0,255,213,0.25);
     }
-    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+  .controls > .btn { flex: 0 0 auto; }
     .btn {
       appearance: none; border: 1px solid var(--panel-border); color: var(--fg);
       background: radial-gradient(120% 120% at 50% 0%, var(--panel), var(--panel-2));
@@ -127,10 +128,11 @@
     /* Home grid cards */
   .game-card { display:flex; gap:12px; align-items:center; justify-content:flex-start; min-height:64px; text-align:left; transition: transform 0.12s ease, box-shadow 0.25s ease; }
     .game-emoji { font-size:26px; line-height:1; }
+  .gc-main { flex: 1 1 auto; min-width: 0; }
   .game-title { font-weight:800; margin-top:2px; letter-spacing: 0.2px; }
   .badge { display:inline-block; font-size:10px; padding:2px 6px; border-radius:999px; background:rgba(124,77,255,0.25); color:#EDE9FE; border:1px solid rgba(124,77,255,0.45); margin-left:8px; box-shadow: var(--glow-2); }
   .game-card:hover { transform: translateY(-2px); box-shadow: 0 10px 22px var(--shadow), var(--glow-2); }
-  .fav-btn { cursor:pointer; margin-left:10px; font-size:14px; opacity:0.9; }
+  .fav-btn { cursor:pointer; margin-left:auto; font-size:14px; opacity:0.9; }
   .fav-on { color: #facc15; }
 
     /* Per-game help button */
@@ -288,7 +290,11 @@
       * { animation: none !important; transition: none !important; }
     }
     /* Effects toggle to disable animations */
-    .no-anim *, .no-anim *::before, .no-anim *::after { animation: none !important; transition: none !important; }
+  .no-anim *, .no-anim *::before, .no-anim *::after { animation: none !important; transition: none !important; }
+
+  /* Utility grid for button rows (recent/quick) */
+  .row-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  @media (max-width: 520px) { .row-grid { grid-template-columns: repeat(2, 1fr); } }
     /* Immersive game mode (mobile) */
     .immersive header, .immersive footer, .immersive .titlebar + .container { display: none !important; }
     .immersive main.container { max-width: none; padding: 0; }
@@ -319,12 +325,11 @@
     <div class="container titlebar" role="banner">
   <h1 aria-label="FunityArcade title">FunityArcade</h1>
       <div class="controls" role="toolbar" aria-label="Global controls">
-        <button class="btn accent" id="randomBtn" title="Surprise me" aria-label="Pick a random game">🎲 Random</button>
-        <button class="btn" id="darkToggle" title="Toggle light/dark mode" aria-pressed="false">🌙 Dark</button>
-        <button class="btn" id="effectsToggle" title="Toggle animations and effects" aria-pressed="true">✨ Effects</button>
-        <button class="btn" id="soundToggle" title="Toggle sound effects" aria-pressed="true">🔊 Sound</button>
-        <button class="btn" id="musicToggle" title="Toggle background music" aria-pressed="false">🎵 Music</button>
-        <a class="btn" href="#" id="gotoHelp">ℹ️ Help</a>
+  <button class="btn accent" id="randomBtn" title="Surprise me" aria-label="Pick a random game">🎲 Random</button>
+  <button class="btn" id="darkToggle" title="Toggle light/dark mode" aria-pressed="false">🌙 Dark</button>
+  <button class="btn" id="effectsToggle" title="Toggle animations and effects" aria-pressed="true">✨ Effects</button>
+  <button class="btn" id="soundToggle" title="Toggle sound effects" aria-pressed="true" aria-label="Toggle sound">🔊</button>
+  <button class="btn" id="musicToggle" title="Toggle background music" aria-pressed="false" aria-label="Toggle music">🎵</button>
       </div>
     </div>
     <div class="container">
@@ -368,11 +373,11 @@
             <div class="meta">Recently played</div>
             <button class="btn" id="recent-clear" title="Clear recently played" style="padding:4px 8px;">Clear</button>
           </div>
-          <div id="recent-row" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+    <div id="recent-row" class="row-grid"></div>
         </div>
         <div id="quick-wrap" style="display:none; margin:8px 0 6px;">
           <div class="meta" style="margin-bottom:6px;">Quick play</div>
-          <div id="quick-row" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+          <div id="quick-row" class="row-grid"></div>
         </div>
         <div id="game-grid" class="grid" style="grid-template-columns: repeat(4, 1fr);"></div>
       </div>
@@ -651,7 +656,7 @@
       }
     }
     $$('.tab').forEach(btn => btn.addEventListener('click', () => showSection(btn.dataset.section)));
-    $('#gotoHelp').addEventListener('click', (e) => { e.preventDefault(); showSection('help'); });
+  const helpBtn = document.getElementById('gotoHelp'); if (helpBtn) helpBtn.addEventListener('click', (e) => { e.preventDefault(); showSection('help'); });
   // Immersive exit via floating Home button
   document.getElementById('home-fab')?.addEventListener('click', ()=> showSection('home'));
     $('#randomBtn').addEventListener('click', () => {
@@ -711,8 +716,8 @@
 
     // Sound/Music toggles
     const soundKey='funity-sound', musicKey='funity-music';
-    function applySound(on){ const b=$('#soundToggle'); b?.setAttribute('aria-pressed', String(on)); if (b) b.textContent = on? '🔊 Sound' : '🔇 Sound Off'; localStorage.setItem(soundKey, on?'on':'off'); AudioFX.setSound(on); }
-    function applyMusic(on){ const b=$('#musicToggle'); b?.setAttribute('aria-pressed', String(on)); if (b) b.textContent = on? '🎵 Music' : '🎵 Music Off'; localStorage.setItem(musicKey, on?'on':'off'); AudioFX.setMusic(on); }
+  function applySound(on){ const b=$('#soundToggle'); b?.setAttribute('aria-pressed', String(on)); if (b) b.textContent = on? '🔊' : '🔇'; localStorage.setItem(soundKey, on?'on':'off'); AudioFX.setSound(on); }
+  function applyMusic(on){ const b=$('#musicToggle'); b?.setAttribute('aria-pressed', String(on)); if (b) b.textContent = on? '🎵' : '🔕'; localStorage.setItem(musicKey, on?'on':'off'); AudioFX.setMusic(on); }
     $('#soundToggle').addEventListener('click', ()=>{ const on=(localStorage.getItem(soundKey)||'on')!=='off'; applySound(!on); });
     $('#musicToggle').addEventListener('click', ()=>{ const on=(localStorage.getItem(musicKey)||'off')==='on'; applyMusic(!on); if (!on && (location.hash.replace('#','')||'home')==='home') AudioFX.startAmbient(); else AudioFX.stopAmbient(); });
 
@@ -836,7 +841,7 @@
           card.title = (DESCR[g.id] ? `${g.title} — ${DESCR[g.id]}` : g.title);
           const badge = NEW_IDS.has(g.id) ? '<span class="badge">NEW</span>' : '';
           const favStar = favs.includes(g.id) ? '<span class="fav-btn fav-on" aria-label="Unfavorite">★</span>' : '<span class="fav-btn" aria-label="Favorite">☆</span>';
-          card.innerHTML = `<div class="game-emoji">${g.emoji}</div><div><div class="game-title">${g.title}${badge}${favStar}</div></div>`;
+          card.innerHTML = `<div class="game-emoji">${g.emoji}</div><div class="gc-main"><div class="game-title">${g.title}${badge}</div></div>${favStar}`;
           card.addEventListener('click', ()=> { AudioFX.sfx.select?.(); showSection(g.sectionId); });
           // Toggle favorite when clicking star
           const starEl = card.querySelector('.fav-btn');
@@ -869,7 +874,7 @@
       row.innerHTML = '';
       rec.forEach(id=>{
         const g = GAME_REG.find(x=>x.sectionId===id); if(!g) return;
-        const b = document.createElement('button'); b.className='btn'; b.style.display='flex'; b.style.alignItems='center'; b.style.gap='8px';
+  const b = document.createElement('button'); b.className='btn'; b.style.display='flex'; b.style.alignItems='center'; b.style.gap='8px'; b.style.width='100%';
         b.innerHTML = `<span style="font-size:18px;">${g.emoji}</span><span>${g.title}</span>`;
   b.addEventListener('click', ()=> { AudioFX.sfx.select?.(); showSection(g.sectionId); });
         row.appendChild(b);
@@ -891,7 +896,7 @@
       row.innerHTML=''; wrap.style.display='block';
       top.forEach(id=>{
         const g = GAME_REG.find(x=>x.sectionId===id); if(!g) return;
-        const b = document.createElement('button'); b.className='btn'; b.style.display='flex'; b.style.alignItems='center'; b.style.gap='8px';
+  const b = document.createElement('button'); b.className='btn'; b.style.display='flex'; b.style.alignItems='center'; b.style.gap='8px'; b.style.width='100%';
         b.title = `${g.title} — played ${getPlayCount(id)} times`;
         b.innerHTML = `<span style="font-size:18px;">${g.emoji}</span><span>${g.title}</span>`;
   b.addEventListener('click', ()=> { AudioFX.sfx.select?.(); showSection(g.sectionId); });
