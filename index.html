@@ -293,11 +293,21 @@
     .immersive header, .immersive footer, .immersive .titlebar + .container { display: none !important; }
     .immersive main.container { max-width: none; padding: 0; }
     .immersive .section { max-width: none; margin: 0; display: flex; min-height: 100vh; min-height: 100svh; min-height: 100dvh; }
-    .immersive .section > .panel { border-radius: 0; flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: auto;
+    .immersive .section > .panel { border-radius: 0; flex: 1 1 auto; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; overflow: hidden;
       padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
     }
-    /* Avoid nested panels also stretching to full height */
-    .immersive .section > .panel .panel { border-radius: 12px; min-height: unset; display: block; }
+    .immersive .section > .panel > h2,
+    .immersive .section > .panel > .meta { flex: 0 0 auto; }
+    /* Make the first non-heading child fill and host the game UI */
+    .immersive .section > .panel > :not(h2):not(.meta):not(.help-btn) {
+      flex: 1 1 auto; width: 100%; display: flex; flex-direction: column; overflow: auto;
+    }
+    /* Stretch common containers inside to fill */
+    .immersive .section > .panel > .grid,
+    .immersive .section > .panel > :not(h2):not(.meta):not(.help-btn) > .grid,
+    .immersive .section > .panel > :not(h2):not(.meta):not(.help-btn) > .panel { flex: 1 1 auto; }
+    /* Avoid nested panels also stretching to full height unless targeted above */
+    .immersive .section > .panel .panel { border-radius: 12px; min-height: unset; }
 
     /* Floating Home button in immersive mode */
     #home-fab { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: none; }
@@ -388,11 +398,11 @@
       <div class="panel">
         <h2>⚡ Reaction Timer</h2>
         <div class="meta">Click Start, wait for green, then click as fast as you can.</div>
-        <div class="grid" style="grid-template-columns: repeat(12, 1fr);">
+        <div class="grid" style="grid-template-columns: repeat(12, 1fr); height: 100%;">
           <div class="panel reaction-board reaction-wait" id="rt-board" style="grid-column: span 8;">
             <div class="reaction-text" id="rt-text">Press Start</div>
           </div>
-          <div class="panel" style="grid-column: span 4; display:flex; flex-direction: column; gap: 10px;">
+          <div class="panel" style="grid-column: span 4; display:flex; flex-direction: column; gap: 10px; height: 100%;">
             <button class="btn primary" id="rt-start">Start</button>
             <div>Last: <strong id="rt-last">—</strong></div>
             <div>Best: <strong id="rt-best">—</strong></div>
@@ -413,7 +423,7 @@
           <button class="btn" id="draw-clear">Clear</button>
           <button class="btn" id="draw-save">Save PNG</button>
         </div>
-        <div class="panel">
+        <div class="panel" style="flex:1 1 auto; display:flex;">
           <canvas id="draw-canvas" width="900" height="500" aria-label="Drawing canvas" role="img"></canvas>
         </div>
       </div>
